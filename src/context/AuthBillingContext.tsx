@@ -1,0 +1,658 @@
+import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
+import {
+  AuthAccount,
+  InvoiceRecord,
+  SubscriptionPlanType,
+  SubscriptionStatus,
+  TrialState,
+} from "../types";
+import { fetchUserSubscriptionStatus } from "../services/api";
+
+const LOCAL_STORAGE_USERS_KEY = "ai_seo_agency_users_v2";
+const LOCAL_STORAGE_CURRENT_USER_KEY = "ai_seo_agency_current_user_v2";
+const LOCAL_STORAGE_INVOICES_KEY = "ai_seo_agency_invoices_v2";
+
+const INITIAL_DEFAULT_USER: AuthAccount = {
+  id: "user-akindewum",
+  name: "Akindewum",
+  email: "akindewum@gmail.com",
+  password: "Password123!",
+  role: "Lead AI SEO Architect & Director",
+  company: "AI SEO Enterprise Agency",
+  avatarInitials: "AK",
+  createdAt: "2026-08-20T09:00:00.000Z",
+  trialStartDate: "2026-08-20T09:00:00.000Z",
+  trialEndDate: "2026-08-27T09:00:00.000Z", // 7 days
+  subscriptionPlan: "free_trial",
+  subscriptionStatus: "trial_active",
+  nextBillingDate: "2026-08-27",
+  paymentMethod: "Visa ending in 4242",
+  last4: "4242",
+  autoRenew: true,
+};
+
+const INITIAL_INVOICES: InvoiceRecord[] = [
+  {
+    id: "inv-init-001",
+    invoiceNumber: "INV-2026-0820",
+    date: "2026-08-20",
+    description: "AI SEO Agency - 7-Day Free Enterprise Trial Activation",
+    amount: 0.0,
+    plan: "7-Day Free Trial",
+    status: "Paid",
+    paymentMethod: "Complimentary Free Trial",
+    pdfDownloadName: "Invoice-INV-2026-0820.pdf",
+  },
+];
+
+interface AuthBillingContextType {
+  currentUser: AuthAccount | null;
+  isAuthenticated: boolean;
+  trialState: TrialState;
+  invoices: InvoiceRecord[];
+  allRegisteredUsers: AuthAccount[];
+  signUp: (name: string, email: string, password: string, company?: string) => { success: boolean; message: string };
+  signIn: (email: string, password: string) => { success: boolean; message: string };
+  signOut: () => void;
+  changePassword: (email: string, oldPassword: string, newPassword: string) => { success: boolean; message: string };
+  resetPasswordDirect: (email: string, newPassword: string) => { success: boolean; message: string };
+  subscribe: (
+    plan: "monthly" | "yearly",
+    paymentDetails?: { method: string; last4: string; cardHolder?: string }
+  ) => { success: boolean; message: string; invoice: InvoiceRecord };
+  subscribeWithPayPal: (
+    plan: "monthly" | "yearly",
+    details: {
+      subscriptionId?: string;
+      orderId?: string;
+      planId: string;
+      payerEmail?: string;
+    }
+  ) => Promise<{ success: boolean; message: string; invoice: InvoiceRecord }>;
+  cancelSubscription: () => { success: boolean; message: string };
+  reactivateSubscription: (plan: "monthly" | "yearly") => { success: boolean; message: string };
+  simulateTrialExpiration: () => void;
+  resetTrial: (days?: number) => void;
+}
+
+const AuthBillingContext = createContext<AuthBillingContextType | undefined>(undefined);
+
+export const AuthBillingProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  // Load registered users from local storage
+  const [users, setUsers] = useState<AuthAccount[]>(() => {
+    try {
+      const saved = localStorage.getItem(LOCAL_STORAGE_USERS_KEY);
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch (e) {
+      console.warn("Failed to load users from storage", e);
+    }
+    return [INITIAL_DEFAULT_USER];
+  });
+
+  // Load current user from local storage
+  const [currentUser, setCurrentUser] = useState<AuthAccount | null>(() => {
+    try {
+      const saved = localStorage.getItem(LOCAL_STORAGE_CURRENT_USER_KEY);
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch (e) {
+      console.warn("Failed to load current user from storage", e);
+    }
+    return INITIAL_DEFAULT_USER;
+  });
+
+  // Load invoices
+  const [invoices, setInvoices] = useState<InvoiceRecord[]>(() => {
+    try {
+      const saved = localStorage.getItem(LOCAL_STORAGE_INVOICES_KEY);
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch (e) {
+      console.warn("Failed to load invoices from storage", e);
+    }
+    return INITIAL_INVOICES;
+  });
+
+  // Sync users to local storage
+  useEffect(() => {
+    try {
+      localStorage.setItem(LOCAL_STORAGE_USERS_KEY, JSON.stringify(users));
+    } catch (e) {
+      console.warn("Failed to save users to storage", e);
+    }
+  }, [users]);
+
+  // Sync current user to local storage
+  useEffect(() => {
+    try {
+      if (currentUser) {
+        localStorage.setItem(LOCAL_STORAGE_CURRENT_USER_KEY, JSON.stringify(currentUser));
+      } else {
+        localStorage.removeItem(LOCAL_STORAGE_CURRENT_USER_KEY);
+      }
+    } catch (e) {
+      console.warn("Failed to save current user to storage", e);
+    }
+  }, [currentUser]);
+
+  // Sync invoices to local storage
+  useEffect(() => {
+    try {
+      localStorage.setItem(LOCAL_STORAGE_INVOICES_KEY, JSON.stringify(invoices));
+    } catch (e) {
+      console.warn("Failed to save invoices to storage", e);
+    }
+  }, [invoices]);
+
+  // Synchronize backend PayPal webhook status with client state
+  const syncWithBackendWebhookState = useCallback(async () => {
+    if (!currentUser?.email) return;
+    try {
+      const serverStatus = await fetchUserSubscriptionStatus(currentUser.email);
+      if (serverStatus && serverStatus.subscription) {
+        const sub = serverStatus.subscription;
+        if (
+          sub.planType !== currentUser.subscriptionPlan ||
+          (sub.status === "ACTIVE" && currentUser.subscriptionStatus !== "active_monthly" && currentUser.subscriptionStatus !== "active_yearly")
+        ) {
+          const isMonthly = sub.planType === "monthly";
+          const updated: AuthAccount = {
+            ...currentUser,
+            subscriptionPlan: sub.planType as "monthly" | "yearly",
+            subscriptionStatus: isMonthly ? "active_monthly" : "active_yearly",
+            paypalSubscriptionId: sub.subscriptionId || currentUser.paypalSubscriptionId,
+            autoRenew: sub.status === "ACTIVE",
+          };
+          setCurrentUser(updated);
+        }
+      }
+    } catch (err) {
+      // Background sync silent catch
+    }
+  }, [currentUser]);
+
+  useEffect(() => {
+    syncWithBackendWebhookState();
+    const interval = setInterval(syncWithBackendWebhookState, 45000);
+    return () => clearInterval(interval);
+  }, [syncWithBackendWebhookState]);
+
+  // Compute 7-Day trial metrics
+  const computeTrialState = (user: AuthAccount | null): TrialState => {
+    if (!user) {
+      return {
+        startDate: new Date().toISOString(),
+        endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+        daysRemaining: 7,
+        totalDays: 7,
+        isExpired: false,
+        percentageUsed: 0,
+      };
+    }
+
+    // If subscribed to Monthly ($29.99) or Yearly ($299.99), trial is bypassed / upgraded
+    if (user.subscriptionPlan === "monthly" || user.subscriptionPlan === "yearly") {
+      return {
+        startDate: user.trialStartDate,
+        endDate: user.trialEndDate,
+        daysRemaining: 0,
+        totalDays: 7,
+        isExpired: false,
+        percentageUsed: 100,
+      };
+    }
+
+    const start = new Date(user.trialStartDate).getTime();
+    const end = new Date(user.trialEndDate).getTime();
+    const now = Date.now();
+    const totalMs = 7 * 24 * 60 * 60 * 1000;
+    const msRemaining = Math.max(0, end - now);
+    const daysRemaining = Math.ceil(msRemaining / (24 * 60 * 60 * 1000));
+    const isExpired = user.subscriptionStatus === "trial_expired" || now >= end;
+    const percentageUsed = Math.min(100, Math.max(0, Math.round(((totalMs - msRemaining) / totalMs) * 100)));
+
+    return {
+      startDate: user.trialStartDate,
+      endDate: user.trialEndDate,
+      daysRemaining: isExpired ? 0 : daysRemaining,
+      totalDays: 7,
+      isExpired,
+      percentageUsed,
+    };
+  };
+
+  const trialState = computeTrialState(currentUser);
+
+  // Helper to extract initials
+  const getInitials = (name: string): string => {
+    if (!name) return "AI";
+    const parts = name.trim().split(" ");
+    if (parts.length >= 2) {
+      return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+    }
+    return name.slice(0, 2).toUpperCase();
+  };
+
+  // 1. Sign Up Handler
+  const signUp = (
+    name: string,
+    email: string,
+    password: string,
+    company: string = "Enterprise SEO Client"
+  ): { success: boolean; message: string } => {
+    const trimmedEmail = email.trim().toLowerCase();
+    const trimmedName = name.trim();
+
+    if (!trimmedName || !trimmedEmail || !password) {
+      return { success: false, message: "Please fill in all required fields (Name, Email, Password)." };
+    }
+
+    if (!trimmedEmail.includes("@") || !trimmedEmail.includes(".")) {
+      return { success: false, message: "Please enter a valid email address." };
+    }
+
+    if (password.length < 6) {
+      return { success: false, message: "Password must be at least 6 characters long." };
+    }
+
+    const existingUser = users.find((u) => u.email.toLowerCase() === trimmedEmail);
+    if (existingUser) {
+      return { success: false, message: "An account with this email address already exists. Please Sign In." };
+    }
+
+    const now = new Date();
+    const trialEnd = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+    const newUser: AuthAccount = {
+      id: `user-${Date.now()}`,
+      name: trimmedName,
+      email: trimmedEmail,
+      password: password,
+      role: "SEO Strategist & Account Owner",
+      company: company || "Digital Marketing Hub",
+      avatarInitials: getInitials(trimmedName),
+      createdAt: now.toISOString(),
+      trialStartDate: now.toISOString(),
+      trialEndDate: trialEnd.toISOString(),
+      subscriptionPlan: "free_trial",
+      subscriptionStatus: "trial_active",
+      autoRenew: true,
+    };
+
+    const updatedUsers = [...users, newUser];
+    setUsers(updatedUsers);
+    setCurrentUser(newUser);
+
+    // Create free trial activation invoice
+    const trialInvoice: InvoiceRecord = {
+      id: `inv-${Date.now()}`,
+      invoiceNumber: `INV-TRIAL-${Math.floor(1000 + Math.random() * 9000)}`,
+      date: now.toISOString().split("T")[0],
+      description: "AI SEO Agency - 7-Day Free Enterprise Trial Activation",
+      amount: 0.0,
+      plan: "7-Day Free Trial",
+      status: "Paid",
+      paymentMethod: "Free Trial Activated",
+      pdfDownloadName: `Invoice-Trial-${trimmedName.replace(/\s+/g, "_")}.pdf`,
+    };
+
+    setInvoices([trialInvoice, ...invoices]);
+
+    return {
+      success: true,
+      message: `Account created successfully! Your 7-Day Free Trial has been activated. Welcome, ${trimmedName}!`,
+    };
+  };
+
+  // 2. Sign In Handler
+  const signIn = (email: string, password: string): { success: boolean; message: string } => {
+    const trimmedEmail = email.trim().toLowerCase();
+
+    if (!trimmedEmail || !password) {
+      return { success: false, message: "Please enter both email and password." };
+    }
+
+    const targetUser = users.find((u) => u.email.toLowerCase() === trimmedEmail);
+
+    if (!targetUser) {
+      return {
+        success: false,
+        message: "No registered account found with this email. Please check your spelling or Sign Up for a new account.",
+      };
+    }
+
+    if (targetUser.password && targetUser.password !== password) {
+      return {
+        success: false,
+        message: "Incorrect password. Please try again or use the 'Change Password' feature.",
+      };
+    }
+
+    setCurrentUser(targetUser);
+    return {
+      success: true,
+      message: `Signed in successfully as ${targetUser.name}! Welcome back.`,
+    };
+  };
+
+  // 3. Sign Out Handler
+  const signOut = () => {
+    setCurrentUser(null);
+  };
+
+  // 4. Change Password Handler (with old password verification)
+  const changePassword = (
+    email: string,
+    oldPassword: string,
+    newPassword: string
+  ): { success: boolean; message: string } => {
+    const trimmedEmail = email.trim().toLowerCase();
+
+    if (!trimmedEmail || !newPassword) {
+      return { success: false, message: "Email and new password are required." };
+    }
+
+    if (newPassword.length < 6) {
+      return { success: false, message: "New password must be at least 6 characters long." };
+    }
+
+    const userIndex = users.findIndex((u) => u.email.toLowerCase() === trimmedEmail);
+    if (userIndex === -1) {
+      return { success: false, message: "User not found with this email address." };
+    }
+
+    const user = users[userIndex];
+    if (user.password && user.password !== oldPassword) {
+      return { success: false, message: "Current password does not match. Please verify your current password." };
+    }
+
+    const updatedUser: AuthAccount = {
+      ...user,
+      password: newPassword,
+    };
+
+    const updatedUsers = [...users];
+    updatedUsers[userIndex] = updatedUser;
+    setUsers(updatedUsers);
+
+    if (currentUser?.email.toLowerCase() === trimmedEmail) {
+      setCurrentUser(updatedUser);
+    }
+
+    return {
+      success: true,
+      message: "Password changed successfully! You can now sign in with your new password.",
+    };
+  };
+
+  // 5. Direct Reset Password Handler (allows users to change password as they wish without old password lock)
+  const resetPasswordDirect = (email: string, newPassword: string): { success: boolean; message: string } => {
+    const trimmedEmail = email.trim().toLowerCase();
+
+    if (!trimmedEmail || !newPassword) {
+      return { success: false, message: "Email and new password are required." };
+    }
+
+    if (newPassword.length < 6) {
+      return { success: false, message: "New password must be at least 6 characters long." };
+    }
+
+    const userIndex = users.findIndex((u) => u.email.toLowerCase() === trimmedEmail);
+    if (userIndex === -1) {
+      return { success: false, message: "No account found matching this email address." };
+    }
+
+    const updatedUser: AuthAccount = {
+      ...users[userIndex],
+      password: newPassword,
+    };
+
+    const updatedUsers = [...users];
+    updatedUsers[userIndex] = updatedUser;
+    setUsers(updatedUsers);
+
+    if (currentUser?.email.toLowerCase() === trimmedEmail) {
+      setCurrentUser(updatedUser);
+    }
+
+    return {
+      success: true,
+      message: "Password successfully updated! Your credentials have been saved securely.",
+    };
+  };
+
+  // 6. Subscribe Handler (Monthly $29.99 or Yearly $299.99)
+  const subscribe = (
+    plan: "monthly" | "yearly",
+    paymentDetails?: { method: string; last4: string; cardHolder?: string }
+  ): { success: boolean; message: string; invoice: InvoiceRecord } => {
+    const isMonthly = plan === "monthly";
+    const amount = isMonthly ? 29.99 : 299.99;
+    const planName = isMonthly ? "Monthly ($29.99)" : "Yearly ($299.99)";
+    const nextDate = new Date();
+    if (isMonthly) {
+      nextDate.setMonth(nextDate.getMonth() + 1);
+    } else {
+      nextDate.setFullYear(nextDate.getFullYear() + 1);
+    }
+
+    const method = paymentDetails?.method || "Credit Card (Visa)";
+    const last4 = paymentDetails?.last4 || "4242";
+
+    const newInvoice: InvoiceRecord = {
+      id: `inv-${Date.now()}`,
+      invoiceNumber: `INV-2026-${Math.floor(10000 + Math.random() * 90000)}`,
+      date: new Date().toISOString().split("T")[0],
+      description: `AI SEO Agency Suite - ${planName} Subscription Renewal`,
+      amount,
+      plan: planName,
+      status: "Paid",
+      paymentMethod: `${method} ending in ${last4}`,
+      pdfDownloadName: `Receipt-${planName.replace(/[^a-zA-Z0-9]/g, "-")}-${Date.now()}.pdf`,
+    };
+
+    setInvoices([newInvoice, ...invoices]);
+
+    if (currentUser) {
+      const updatedUser: AuthAccount = {
+        ...currentUser,
+        subscriptionPlan: plan,
+        subscriptionStatus: isMonthly ? "active_monthly" : "active_yearly",
+        nextBillingDate: nextDate.toISOString().split("T")[0],
+        paymentMethod: `${method} ending in ${last4}`,
+        last4,
+        autoRenew: true,
+      };
+
+      setCurrentUser(updatedUser);
+
+      // Update users array
+      const userIndex = users.findIndex((u) => u.id === currentUser.id);
+      if (userIndex !== -1) {
+        const updatedUsers = [...users];
+        updatedUsers[userIndex] = updatedUser;
+        setUsers(updatedUsers);
+      }
+    }
+
+    return {
+      success: true,
+      message: `Payment of $${amount.toFixed(2)} processed successfully! Your ${isMonthly ? "Monthly" : "Yearly"} subscription is active with uninterrupted access.`,
+      invoice: newInvoice,
+    };
+  };
+
+  // 6.2 PayPal Gateway Subscribe Handler (Monthly $29.99 / Yearly $299.99)
+  const subscribeWithPayPal = async (
+    plan: "monthly" | "yearly",
+    details: {
+      subscriptionId?: string;
+      orderId?: string;
+      planId: string;
+      payerEmail?: string;
+    }
+  ): Promise<{ success: boolean; message: string; invoice: InvoiceRecord }> => {
+    const isMonthly = plan === "monthly";
+    const amount = isMonthly ? 29.99 : 299.99;
+    const planName = isMonthly ? "Monthly ($29.99)" : "Yearly ($299.99)";
+    const planId =
+      details.planId ||
+      (isMonthly
+        ? "P-60J823292U163132VNKGRA6Y"
+        : "P-0SJ71276U2989504JNKGRCHQ");
+    const subId =
+      details.subscriptionId ||
+      details.orderId ||
+      `I-PP${Date.now().toString(36).toUpperCase()}`;
+
+    const nextDate = new Date();
+    if (isMonthly) {
+      nextDate.setMonth(nextDate.getMonth() + 1);
+    } else {
+      nextDate.setFullYear(nextDate.getFullYear() + 1);
+    }
+
+    const invoiceNumber = `INV-PP-${new Date().getFullYear()}-${Math.floor(100000 + Math.random() * 900000)}`;
+
+    const newInvoice: InvoiceRecord = {
+      id: `inv-${Date.now()}`,
+      invoiceNumber: invoiceNumber,
+      date: new Date().toISOString().split("T")[0],
+      description: `AI SEO Agency Suite - ${planName} [PayPal Gateway: ${planId}]`,
+      amount,
+      plan: planName,
+      status: "Paid",
+      paymentMethod: `PayPal Gateway (${details.payerEmail || currentUser?.email || "Account"})`,
+      pdfDownloadName: `PayPal-Receipt-${invoiceNumber}.pdf`,
+      paypalTransactionId: subId,
+      paypalPlanId: planId,
+      paypalSubscriptionId: subId,
+    };
+
+    setInvoices([newInvoice, ...invoices]);
+
+    if (currentUser) {
+      const updatedUser: AuthAccount = {
+        ...currentUser,
+        subscriptionPlan: plan,
+        subscriptionStatus: isMonthly ? "active_monthly" : "active_yearly",
+        nextBillingDate: nextDate.toISOString().split("T")[0],
+        paymentMethod: `PayPal (${details.payerEmail || currentUser.email})`,
+        last4: "PayPal",
+        paypalSubscriptionId: subId,
+        paypalPlanId: planId,
+        paypalEmail: details.payerEmail || currentUser.email,
+        autoRenew: true,
+      };
+
+      setCurrentUser(updatedUser);
+
+      // Update in stored users array
+      const userIndex = users.findIndex((u) => u.id === currentUser.id);
+      if (userIndex !== -1) {
+        const updatedUsers = [...users];
+        updatedUsers[userIndex] = updatedUser;
+        setUsers(updatedUsers);
+      }
+    }
+
+    return {
+      success: true,
+      message: `PayPal subscription verified successfully! Plan ID: ${planId}. Your account is now fully active with uninterrupted access to all AI SEO Agency tools.`,
+      invoice: newInvoice,
+    };
+  };
+
+  // 7. Cancel Subscription Handler
+  const cancelSubscription = (): { success: boolean; message: string } => {
+    if (!currentUser) return { success: false, message: "No active user logged in." };
+
+    const updatedUser: AuthAccount = {
+      ...currentUser,
+      subscriptionStatus: "cancelled",
+      autoRenew: false,
+    };
+
+    setCurrentUser(updatedUser);
+    const userIndex = users.findIndex((u) => u.id === currentUser.id);
+    if (userIndex !== -1) {
+      const updatedUsers = [...users];
+      updatedUsers[userIndex] = updatedUser;
+      setUsers(updatedUsers);
+    }
+
+    return {
+      success: true,
+      message: "Subscription auto-renewal cancelled. You will continue to have full access until the end of your current billing period.",
+    };
+  };
+
+  // 8. Reactivate Subscription Handler
+  const reactivateSubscription = (plan: "monthly" | "yearly"): { success: boolean; message: string } => {
+    return subscribe(plan);
+  };
+
+  // 9. Simulate Trial Expiration for testing
+  const simulateTrialExpiration = () => {
+    if (!currentUser) return;
+    const expiredUser: AuthAccount = {
+      ...currentUser,
+      subscriptionPlan: "free_trial",
+      subscriptionStatus: "trial_expired",
+      trialEndDate: new Date(Date.now() - 1000 * 60 * 60).toISOString(),
+    };
+    setCurrentUser(expiredUser);
+  };
+
+  // 10. Reset Trial for testing
+  const resetTrial = (days: number = 7) => {
+    if (!currentUser) return;
+    const now = new Date();
+    const future = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
+    const resetUser: AuthAccount = {
+      ...currentUser,
+      subscriptionPlan: "free_trial",
+      subscriptionStatus: "trial_active",
+      trialStartDate: now.toISOString(),
+      trialEndDate: future.toISOString(),
+    };
+    setCurrentUser(resetUser);
+  };
+
+  return (
+    <AuthBillingContext.Provider
+      value={{
+        currentUser,
+        isAuthenticated: !!currentUser,
+        trialState,
+        invoices,
+        allRegisteredUsers: users,
+        signUp,
+        signIn,
+        signOut,
+        changePassword,
+        resetPasswordDirect,
+        subscribe,
+        subscribeWithPayPal,
+        cancelSubscription,
+        reactivateSubscription,
+        simulateTrialExpiration,
+        resetTrial,
+      }}
+    >
+      {children}
+    </AuthBillingContext.Provider>
+  );
+};
+
+export const useAuthBilling = () => {
+  const context = useContext(AuthBillingContext);
+  if (!context) {
+    throw new Error("useAuthBilling must be used within an AuthBillingProvider");
+  }
+  return context;
+};

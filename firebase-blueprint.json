@@ -1,0 +1,161 @@
+{
+  "entities": {
+    "users": {
+      "title": "User Account",
+      "description": "User profile, agency tier, authentication metadata, and billing state.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "User ID / Firebase Auth UID" },
+        "email": { "type": "string", "format": "email", "description": "Primary account email" },
+        "name": { "type": "string", "description": "Full name or Agency contact name" },
+        "businessName": { "type": "string", "description": "Agency or Company name" },
+        "targetDomain": { "type": "string", "description": "Primary monitored domain" },
+        "role": { "type": "string", "enum": ["owner", "admin", "analyst", "viewer"], "description": "Role permission level" },
+        "subscriptionPlan": { "type": "string", "enum": ["trial", "monthly", "yearly", "enterprise", "agency_scale"] },
+        "subscriptionStatus": { "type": "string", "enum": ["trialing", "active_monthly", "active_yearly", "cancelled", "past_due", "expired"] },
+        "trialStartDate": { "type": "string", "format": "date-time" },
+        "trialEndDate": { "type": "string", "format": "date-time" },
+        "paypalSubscriptionId": { "type": "string" },
+        "autoRenew": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "email", "subscriptionPlan", "subscriptionStatus"]
+    },
+    "keywords": {
+      "title": "Keyword Item",
+      "description": "Tracked SEO keyword node with ranking and AI Overview analytics.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string", "description": "Owner user UID" },
+        "keyword": { "type": "string" },
+        "searchVolume": { "type": "number" },
+        "difficulty": { "type": "number" },
+        "cpc": { "type": "number" },
+        "currentRank": { "type": "number" },
+        "previousRank": { "type": "number" },
+        "intent": { "type": "string" },
+        "aiOverviewProbability": { "type": "number" },
+        "serpFeatures": { "type": "array", "items": { "type": "string" } },
+        "cluster": { "type": "string" },
+        "dateAdded": { "type": "string" },
+        "status": { "type": "string" },
+        "archived": { "type": "boolean" }
+      },
+      "required": ["id", "keyword", "searchVolume", "currentRank"]
+    },
+    "competitors": {
+      "title": "Competitor Item",
+      "description": "Monitored rival domain metrics and AI Overview presence.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "name": { "type": "string" },
+        "domain": { "type": "string" },
+        "domainAuthority": { "type": "number" },
+        "organicKeywords": { "type": "number" },
+        "estimatedTraffic": { "type": "string" },
+        "aiOverviewPresence": { "type": "number" },
+        "backlinksCount": { "type": "number" },
+        "overlapKeywordsCount": { "type": "number" },
+        "dateAdded": { "type": "string" },
+        "archived": { "type": "boolean" }
+      },
+      "required": ["id", "domain", "name"]
+    },
+    "content_pieces": {
+      "title": "Content Piece",
+      "description": "Content optimization draft with EEAT audit scoring.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "type": { "type": "string" },
+        "targetKeyword": { "type": "string" },
+        "wordCount": { "type": "number" },
+        "status": { "type": "string" },
+        "eeatScore": { "type": "number" },
+        "publishDate": { "type": "string" },
+        "lastAuditedDate": { "type": "string" },
+        "aiOptimized": { "type": "boolean" },
+        "author": { "type": "string" },
+        "archived": { "type": "boolean" }
+      },
+      "required": ["id", "title", "targetKeyword"]
+    },
+    "local_citations": {
+      "title": "Local Citation",
+      "description": "Local SEO directory listing with NAP consistency rating.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "platform": { "type": "string" },
+        "category": { "type": "string" },
+        "status": { "type": "string" },
+        "napConsistency": { "type": "number" },
+        "reviewCount": { "type": "number" },
+        "rating": { "type": "number" },
+        "profileUrl": { "type": "string" },
+        "dateUpdated": { "type": "string" },
+        "archived": { "type": "boolean" }
+      },
+      "required": ["id", "platform"]
+    },
+    "audio_transcripts": {
+      "title": "Audio Transcript",
+      "description": "Client intake audio recording transcription and SEO action items.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "client": { "type": "string" },
+        "duration": { "type": "string" },
+        "dateRecorded": { "type": "string" },
+        "fullTranscript": { "type": "string" },
+        "extractedKeywords": { "type": "array", "items": { "type": "string" } },
+        "actionItems": { "type": "array", "items": { "type": "string" } },
+        "sentiment": { "type": "string" },
+        "archived": { "type": "boolean" }
+      },
+      "required": ["id", "title", "fullTranscript"]
+    },
+    "campaign_logs": {
+      "title": "Campaign Activity Log",
+      "description": "Audit and optimization event trail.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "category": { "type": "string" },
+        "event": { "type": "string" },
+        "impactScore": { "type": "string" },
+        "user": { "type": "string" }
+      },
+      "required": ["id", "timestamp", "event"]
+    },
+    "invoices": {
+      "title": "Billing Invoice",
+      "description": "PayPal subscription invoice and transaction receipts.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "invoiceNumber": { "type": "string" },
+        "date": { "type": "string" },
+        "amount": { "type": "number" },
+        "planName": { "type": "string" },
+        "billingCycle": { "type": "string" },
+        "status": { "type": "string" },
+        "pdfUrl": { "type": "string" },
+        "transactionId": { "type": "string" }
+      },
+      "required": ["id", "invoiceNumber", "amount", "status"]
+    }
+  }
+}

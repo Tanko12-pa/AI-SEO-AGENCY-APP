@@ -1,0 +1,98 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isDocOwner() {
+      return isAuthenticated() && (
+        resource == null ||
+        resource.data.userId == request.auth.uid ||
+        request.resource.data.userId == request.auth.uid
+      );
+    }
+
+    // User profile collection
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated() && request.auth.uid == userId;
+      allow delete: if false; // Safeguard against accidental profile deletion
+    }
+
+    // Keywords collection
+    match /keywords/{keywordId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isAuthenticated() && (
+        !exists(/databases/{database}/documents/keywords/{keywordId}) ||
+        resource.data.userId == request.auth.uid ||
+        !('userId' in resource.data) ||
+        resource.data.userId == null
+      );
+    }
+
+    // Competitors collection
+    match /competitors/{competitorId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isAuthenticated() && (
+        !exists(/databases/{database}/documents/competitors/{competitorId}) ||
+        resource.data.userId == request.auth.uid ||
+        !('userId' in resource.data) ||
+        resource.data.userId == null
+      );
+    }
+
+    // Content pieces collection
+    match /content_pieces/{contentId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isAuthenticated() && (
+        !exists(/databases/{database}/documents/content_pieces/{contentId}) ||
+        resource.data.userId == request.auth.uid ||
+        !('userId' in resource.data) ||
+        resource.data.userId == null
+      );
+    }
+
+    // Local citations collection
+    match /local_citations/{citationId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isAuthenticated() && (
+        !exists(/databases/{database}/documents/local_citations/{citationId}) ||
+        resource.data.userId == request.auth.uid ||
+        !('userId' in resource.data) ||
+        resource.data.userId == null
+      );
+    }
+
+    // Audio transcripts collection
+    match /audio_transcripts/{transcriptId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isAuthenticated() && (
+        !exists(/databases/{database}/documents/audio_transcripts/{transcriptId}) ||
+        resource.data.userId == request.auth.uid ||
+        !('userId' in resource.data) ||
+        resource.data.userId == null
+      );
+    }
+
+    // Campaign logs collection
+    match /campaign_logs/{logId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated();
+      allow delete: if false;
+    }
+
+    // Invoices collection
+    match /invoices/{invoiceId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated();
+      allow delete: if false;
+    }
+  }
+}

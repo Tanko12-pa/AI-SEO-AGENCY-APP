@@ -1,0 +1,10 @@
+{
+  "name": "AI-POWERED SEO AGENCY",
+  "description": "Enterprise AI SEO Agency suite featuring full PayPal Payment Gateway integration (Monthly $29.99 & Yearly $299.99 plans), 7-Day Free Trial continuity, Sign Up/Sign In/Password management, AI Content Optimizer & EEAT Auditor, real-time Google Trends Grounding Radar, and A2A Judge Core evaluation engine.",
+  "requestFramePermissions": [
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
