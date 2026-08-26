@@ -371,6 +371,15 @@ export async function addCampaignLogToFirestore(log: CampaignLogItem): Promise<v
   }
 }
 
+export async function deleteCampaignLogFromFirestore(id: string): Promise<void> {
+  try {
+    const docRef = doc(db, COLLECTIONS.CAMPAIGN_LOGS, id);
+    await deleteDoc(docRef);
+  } catch (e) {
+    console.warn("Firestore deleteCampaignLog error:", e);
+  }
+}
+
 // --- INVOICES ---
 export function subscribeInvoices(
   onData: (items: InvoiceRecord[]) => void

@@ -40,6 +40,7 @@ import { SentimentEngagementGauge } from "../content/SentimentEngagementGauge";
 interface ContentMarketingViewProps {
   contentPieces: ContentPieceItem[];
   citations: LocalCitationItem[];
+  externalSearchQuery?: string;
   onAddContentPiece: (cnt: ContentPieceItem) => void;
   onUpdateContentPiece?: (cnt: ContentPieceItem) => void;
   onDeleteContentPiece: (id: string) => void;
@@ -53,6 +54,7 @@ interface ContentMarketingViewProps {
 export const ContentMarketingView: React.FC<ContentMarketingViewProps> = ({
   contentPieces,
   citations,
+  externalSearchQuery,
   onAddContentPiece,
   onUpdateContentPiece,
   onDeleteContentPiece,
@@ -70,6 +72,7 @@ export const ContentMarketingView: React.FC<ContentMarketingViewProps> = ({
   const [contentArchiveFilter, setContentArchiveFilter] = useState<"active" | "archived" | "all">("active");
   const [citationArchiveFilter, setCitationArchiveFilter] = useState<"active" | "archived" | "all">("active");
   const [searchQuery, setSearchQuery] = useState("");
+  const effectiveSearch = (searchQuery || externalSearchQuery || "").trim().toLowerCase();
 
   // Outline & Draft Generator States
   const [outlineTopic, setOutlineTopic] = useState("Google AI Overviews Optimization & 45-Word Answer Strategy");
@@ -180,12 +183,11 @@ export const ContentMarketingView: React.FC<ContentMarketingViewProps> = ({
     if (freshnessFilter === "fresh" && auditStatus.isStale) return false;
     if (freshnessFilter === "stale" && !auditStatus.isStale) return false;
 
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
+    if (effectiveSearch) {
       return (
-        c.title.toLowerCase().includes(query) ||
-        c.targetKeyword.toLowerCase().includes(query) ||
-        c.type.toLowerCase().includes(query)
+        c.title.toLowerCase().includes(effectiveSearch) ||
+        c.targetKeyword.toLowerCase().includes(effectiveSearch) ||
+        c.type.toLowerCase().includes(effectiveSearch)
       );
     }
 

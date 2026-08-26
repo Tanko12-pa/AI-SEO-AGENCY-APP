@@ -28,6 +28,7 @@ import {
   Radio,
   Flame,
   HelpCircle,
+  Upload,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -40,6 +41,7 @@ import {
   Tooltip,
 } from "recharts";
 import { KeywordItem, GoogleTrendsResult, GroundingSource } from "../../types";
+import { CsvImportModal } from "../CsvImportModal";
 import {
   executeKeywordResearch,
   analyzeCompetitorKeywords,
@@ -55,6 +57,7 @@ import {
 
 interface KeywordMatrixViewProps {
   keywords: KeywordItem[];
+  externalSearchQuery?: string;
   onAddKeyword: (kw: KeywordItem) => void;
   onDeleteKeyword: (id: string) => void;
   onToggleArchiveKeyword?: (id: string) => void;
@@ -77,6 +80,7 @@ function generateKeywordSparklineData(keyword: KeywordItem) {
 
 export const KeywordMatrixView: React.FC<KeywordMatrixViewProps> = ({
   keywords,
+  externalSearchQuery,
   onAddKeyword,
   onDeleteKeyword,
   onToggleArchiveKeyword,
@@ -84,6 +88,7 @@ export const KeywordMatrixView: React.FC<KeywordMatrixViewProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<"matrix" | "trends" | "research" | "competitor">("matrix");
   const [searchFilter, setSearchFilter] = useState("");
+  const effectiveSearch = (searchFilter || externalSearchQuery || "").toLowerCase();
   const [selectedCluster, setSelectedCluster] = useState<string>("All");
   const [selectedIntent, setSelectedIntent] = useState<string>("All");
   const [archiveFilter, setArchiveFilter] = useState<"active" | "archived" | "all">("active");
@@ -123,6 +128,14 @@ export const KeywordMatrixView: React.FC<KeywordMatrixViewProps> = ({
     ids: [],
   });
   const [isBulkProcessing, setIsBulkProcessing] = useState(false);
+  const [isCsvImportOpen, setIsCsvImportOpen] = useState(false);
+
+  const handleBulkImportKeywords = (newKeywords: KeywordItem[]) => {
+    newKeywords.forEach((kw) => {
+      onAddKeyword(kw);
+    });
+    setIsCsvImportOpen(false);
+  };
 
   // Toggle selection for a single keyword
   const handleToggleSelectKeyword = (id: string) => {
@@ -260,8 +273,8 @@ export const KeywordMatrixView: React.FC<KeywordMatrixViewProps> = ({
     if (archiveFilter === "archived" && !isArchived) return false;
 
     const matchesSearch =
-      k.keyword.toLowerCase().includes(searchFilter.toLowerCase()) ||
-      k.cluster.toLowerCase().includes(searchFilter.toLowerCase());
+      k.keyword.toLowerCase().includes(effectiveSearch) ||
+      k.cluster.toLowerCase().includes(effectiveSearch);
     const matchesCluster =
       selectedCluster === "All" || k.cluster === selectedCluster;
     const matchesIntent =
@@ -601,6 +614,16 @@ Key Actionable Takeaway: ${selectedTrendResult.actionableTakeaway}`;
             </div>
 
             <div className="flex items-center gap-2">
+              <button
+                id="keyword-matrix-import-csv-btn"
+                onClick={() => setIsCsvImportOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-md bg-[#004d00] hover:bg-[#003d00] text-white text-xs font-semibold transition-colors shadow-sm"
+                title="Bulk import keywords from a CSV file"
+              >
+                <Upload className="w-3.5 h-3.5 text-[#ffa500]" />
+                <span>Import CSV</span>
+              </button>
+
               <button
                 onClick={handleExportCSV}
                 className="flex items-center gap-1.5 px-3 py-2 rounded-md border border-gray-300 hover:bg-gray-50 text-xs font-semibold text-gray-700 transition-colors shadow-sm"
@@ -1647,6 +1670,14 @@ Key Actionable Takeaway: ${selectedTrendResult.actionableTakeaway}`;
         onConfirm={handleConfirmBulkAction}
         onCancel={() => setBulkModalState({ isOpen: false, actionType: "delete", ids: [] })}
         isProcessing={isBulkProcessing}
+      />
+
+      {/* CSV Bulk Import Modal */}
+      <CsvImportModal
+        isOpen={isCsvImportOpen}
+        onClose={() => setIsCsvImportOpen(false)}
+        importType="keywords"
+        onImportKeywords={handleBulkImportKeywords}
       />
     </div>
   );

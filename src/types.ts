@@ -273,8 +273,12 @@ export interface TrialState {
   startDate: string;
   endDate: string;
   daysRemaining: number;
+  hoursRemaining?: number;
   totalDays: number;
   isExpired: boolean;
+  isAdvanceWarning?: boolean;
+  hasActiveSubscription?: boolean;
+  isAccessRestricted?: boolean;
   percentageUsed: number;
 }
 

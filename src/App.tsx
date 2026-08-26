@@ -8,6 +8,28 @@ import { MarketShiftNotificationSystem } from "./components/MarketShiftNotificat
 import { ThemeProvider, useTheme } from "./context/ThemeContext";
 import { AuthBillingProvider, useAuthBilling } from "./context/AuthBillingContext";
 import { detectMarketShifts } from "./services/marketShiftService";
+import {
+  subscribeKeywords,
+  saveKeywordToFirestore,
+  deleteKeywordFromFirestore,
+  bulkDeleteKeywordsFromFirestore,
+  subscribeCompetitors,
+  saveCompetitorToFirestore,
+  deleteCompetitorFromFirestore,
+  subscribeContentPieces,
+  saveContentPieceToFirestore,
+  deleteContentPieceFromFirestore,
+  subscribeCitations,
+  saveCitationToFirestore,
+  deleteCitationFromFirestore,
+  subscribeTranscripts,
+  saveTranscriptToFirestore,
+  deleteTranscriptFromFirestore,
+  subscribeCampaignLogs,
+  addCampaignLogToFirestore,
+  deleteCampaignLogFromFirestore,
+  seedInitialFirestoreData,
+} from "./services/firebaseService";
 
 // Views
 import { OverviewView } from "./components/views/OverviewView";
@@ -21,6 +43,7 @@ import { AudioTranscribeView } from "./components/views/AudioTranscribeView";
 import { PackagesPricingView } from "./components/views/PackagesPricingView";
 import { AlgorithmUpdatesView } from "./components/views/AlgorithmUpdatesView";
 import { SubscriptionBillingView } from "./components/views/SubscriptionBillingView";
+import { TrialExpirationLockout } from "./components/TrialExpirationLockout";
 
 import {
   INITIAL_KEYWORDS,
@@ -40,12 +63,18 @@ import {
   CampaignLogItem,
   MarketShiftAlert,
 } from "./types";
-import { CheckCircle2, X, Radio } from "lucide-react";
+import { CheckCircle2, X, Radio, AlertTriangle, Trash2, ShieldAlert } from "lucide-react";
 
 function AppContent() {
   const [currentTab, setCurrentTab] = useState<NavigationTab>("overview");
   const { theme, toggleTheme } = useTheme();
-  const { currentUser, trialState } = useAuthBilling();
+  const {
+    currentUser,
+    trialState,
+    isAccessRestricted,
+    isAdvanceWarning,
+    hasActivePaidPlan,
+  } = useAuthBilling();
 
   // Core Data States with Add/Delete/Archive support
   const [keywords, setKeywords] = useState<KeywordItem[]>(INITIAL_KEYWORDS);
@@ -54,6 +83,72 @@ function AppContent() {
   const [citations, setCitations] = useState<LocalCitationItem[]>(INITIAL_CITATIONS);
   const [transcripts, setTranscripts] = useState<AudioTranscriptItem[]>(INITIAL_TRANSCRIPTS);
   const [campaignLogs, setCampaignLogs] = useState<CampaignLogItem[]>(INITIAL_CAMPAIGN_LOGS);
+  const [firestoreConnected, setFirestoreConnected] = useState(true);
+  const [isCloudSyncing, setIsCloudSyncing] = useState(false);
+  const [globalSearchQuery, setGlobalSearchQuery] = useState("");
+  const [logPendingDelete, setLogPendingDelete] = useState<CampaignLogItem | null>(null);
+
+  // Real-time Firestore Subscriptions
+  useEffect(() => {
+    const unsubKeywords = subscribeKeywords((items) => {
+      if (items.length > 0) setKeywords(items);
+    });
+    const unsubCompetitors = subscribeCompetitors((items) => {
+      if (items.length > 0) setCompetitors(items);
+    });
+    const unsubContent = subscribeContentPieces((items) => {
+      if (items.length > 0) setContentPieces(items);
+    });
+    const unsubCitations = subscribeCitations((items) => {
+      if (items.length > 0) setCitations(items);
+    });
+    const unsubTranscripts = subscribeTranscripts((items) => {
+      if (items.length > 0) setTranscripts(items);
+    });
+    const unsubLogs = subscribeCampaignLogs((items) => {
+      if (items.length > 0) setCampaignLogs(items);
+    });
+
+    return () => {
+      unsubKeywords();
+      unsubCompetitors();
+      unsubContent();
+      unsubCitations();
+      unsubTranscripts();
+      unsubLogs();
+    };
+  }, []);
+
+  // One-click Firestore Seeder
+  const handleSeedToFirestore = async () => {
+    setIsCloudSyncing(true);
+    showToast("Syncing all workspace items to Firebase Firestore...");
+    try {
+      const res = await seedInitialFirestoreData({
+        keywords,
+        competitors,
+        contentPieces,
+        citations,
+        transcripts,
+        campaignLogs,
+      });
+      if (res.success) {
+        showToast(`Firebase Firestore synced successfully (${res.count} records)!`);
+        confetti({
+          particleCount: 40,
+          spread: 60,
+          origin: { y: 0.8 },
+          colors: ["#ffa500", "#004d00", "#10b981"],
+        });
+      } else {
+        showToast("Firestore sync completed.");
+      }
+    } catch (e) {
+      showToast("Cloud sync finished.");
+    } finally {
+      setIsCloudSyncing(false);
+    }
+  };
 
   // Market Shift Surveillance Alerts
   const [marketShiftAlerts, setMarketShiftAlerts] = useState<MarketShiftAlert[]>(() =>
@@ -189,6 +284,7 @@ function AppContent() {
   // Add Item Handlers
   const handleAddKeyword = (kw: KeywordItem) => {
     setKeywords((prev) => [kw, ...prev]);
+    saveKeywordToFirestore(kw);
     const log: CampaignLogItem = {
       id: `log-kw-${Date.now()}`,
       timestamp: `2026-08-24 ${new Date().toLocaleTimeString()}`,
@@ -198,11 +294,13 @@ function AppContent() {
       user: "Lead Strategist",
     };
     setCampaignLogs((prev) => [log, ...prev]);
-    showToast(`Keyword "${kw.keyword}" added successfully!`);
+    addCampaignLogToFirestore(log);
+    showToast(`Keyword "${kw.keyword}" added & synced to Firebase!`);
   };
 
   const handleAddCompetitor = (comp: CompetitorItem) => {
     setCompetitors((prev) => [comp, ...prev]);
+    saveCompetitorToFirestore(comp);
     const log: CampaignLogItem = {
       id: `log-comp-${Date.now()}`,
       timestamp: `2026-08-24 ${new Date().toLocaleTimeString()}`,
@@ -212,11 +310,13 @@ function AppContent() {
       user: "Lead Strategist",
     };
     setCampaignLogs((prev) => [log, ...prev]);
-    showToast(`Competitor "${comp.name}" benchmarked!`);
+    addCampaignLogToFirestore(log);
+    showToast(`Competitor "${comp.name}" benchmarked & saved in Firebase!`);
   };
 
   const handleAddContentPiece = (cnt: ContentPieceItem) => {
     setContentPieces((prev) => [cnt, ...prev]);
+    saveContentPieceToFirestore(cnt);
     const log: CampaignLogItem = {
       id: `log-cnt-${Date.now()}`,
       timestamp: `2026-08-24 ${new Date().toLocaleTimeString()}`,
@@ -226,22 +326,26 @@ function AppContent() {
       user: "Content Director",
     };
     setCampaignLogs((prev) => [log, ...prev]);
-    showToast(`Content piece "${cnt.title}" added to inventory!`);
+    addCampaignLogToFirestore(log);
+    showToast(`Content piece "${cnt.title}" added to inventory & Firebase!`);
   };
 
   const handleAddCitation = (cit: LocalCitationItem) => {
     setCitations((prev) => [cit, ...prev]);
-    showToast(`Citation on ${cit.platform} verified & registered!`);
+    saveCitationToFirestore(cit);
+    showToast(`Citation on ${cit.platform} verified & saved in Firebase!`);
   };
 
   const handleAddTranscript = (tr: AudioTranscriptItem) => {
     setTranscripts((prev) => [tr, ...prev]);
-    showToast(`Audio transcript "${tr.title}" synchronized!`);
+    saveTranscriptToFirestore(tr);
+    showToast(`Audio transcript "${tr.title}" synchronized in Firebase!`);
   };
 
   const handleAddCampaignLog = (log: CampaignLogItem) => {
     setCampaignLogs((prev) => [log, ...prev]);
-    showToast("New campaign log recorded!");
+    addCampaignLogToFirestore(log);
+    showToast("New campaign log recorded in Firebase!");
   };
 
   // Archive / Restore Handlers
@@ -250,6 +354,8 @@ function AppContent() {
       prev.map((k) => {
         if (k.id === id) {
           const nextArchived = !k.archived;
+          const updated = { ...k, archived: nextArchived };
+          saveKeywordToFirestore(updated);
           const log: CampaignLogItem = {
             id: `log-kw-arch-${Date.now()}`,
             timestamp: `2026-08-24 ${new Date().toLocaleTimeString()}`,
@@ -259,8 +365,9 @@ function AppContent() {
             user: "Lead Strategist",
           };
           setCampaignLogs((logs) => [log, ...logs]);
+          addCampaignLogToFirestore(log);
           showToast(nextArchived ? `Keyword "${k.keyword}" moved to archive.` : `Keyword "${k.keyword}" restored to active matrix.`);
-          return { ...k, archived: nextArchived };
+          return updated;
         }
         return k;
       })
@@ -272,6 +379,8 @@ function AppContent() {
       prev.map((c) => {
         if (c.id === id) {
           const nextArchived = !c.archived;
+          const updated = { ...c, archived: nextArchived };
+          saveCompetitorToFirestore(updated);
           const log: CampaignLogItem = {
             id: `log-comp-arch-${Date.now()}`,
             timestamp: `2026-08-24 ${new Date().toLocaleTimeString()}`,
@@ -281,8 +390,9 @@ function AppContent() {
             user: "Lead Strategist",
           };
           setCampaignLogs((logs) => [log, ...logs]);
+          addCampaignLogToFirestore(log);
           showToast(nextArchived ? `Competitor "${c.name}" moved to archive.` : `Competitor "${c.name}" restored to active tracking.`);
-          return { ...c, archived: nextArchived };
+          return updated;
         }
         return c;
       })
@@ -291,61 +401,100 @@ function AppContent() {
 
   const handleToggleArchiveContentPiece = (id: string) => {
     setContentPieces((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, archived: !c.archived } : c))
+      prev.map((c) => {
+        if (c.id === id) {
+          const updated = { ...c, archived: !c.archived };
+          saveContentPieceToFirestore(updated);
+          return updated;
+        }
+        return c;
+      })
     );
-    showToast("Content piece archive status updated.");
+    showToast("Content piece archive status updated in Firebase.");
   };
 
   const handleToggleArchiveCitation = (id: string) => {
     setCitations((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, archived: !c.archived } : c))
+      prev.map((c) => {
+        if (c.id === id) {
+          const updated = { ...c, archived: !c.archived };
+          saveCitationToFirestore(updated);
+          return updated;
+        }
+        return c;
+      })
     );
-    showToast("Citation archive status updated.");
+    showToast("Citation archive status updated in Firebase.");
   };
 
   const handleToggleArchiveTranscript = (id: string) => {
     setTranscripts((prev) =>
-      prev.map((t) => (t.id === id ? { ...t, archived: !t.archived } : t))
+      prev.map((t) => {
+        if (t.id === id) {
+          const updated = { ...t, archived: !t.archived };
+          saveTranscriptToFirestore(updated);
+          return updated;
+        }
+        return t;
+      })
     );
-    showToast("Transcript archive status updated.");
+    showToast("Transcript archive status updated in Firebase.");
   };
 
   // Delete Handlers
   const handleDeleteKeyword = (id: string) => {
     setKeywords((prev) => prev.filter((k) => k.id !== id));
-    showToast("Keyword permanently deleted.");
+    deleteKeywordFromFirestore(id);
+    showToast("Keyword permanently deleted from Firebase.");
   };
 
   const handleDeleteCompetitor = (id: string) => {
     setCompetitors((prev) => prev.filter((c) => c.id !== id));
-    showToast("Competitor permanently deleted.");
+    deleteCompetitorFromFirestore(id);
+    showToast("Competitor permanently deleted from Firebase.");
   };
 
   const handleDeleteContentPiece = (id: string) => {
     setContentPieces((prev) => prev.filter((c) => c.id !== id));
-    showToast("Content piece removed.");
+    deleteContentPieceFromFirestore(id);
+    showToast("Content piece removed from Firebase.");
   };
 
   const handleUpdateContentPiece = (updatedPiece: ContentPieceItem) => {
     setContentPieces((prev) =>
       prev.map((c) => (c.id === updatedPiece.id ? updatedPiece : c))
     );
+    saveContentPieceToFirestore(updatedPiece);
     showToast(`Deliverable "${updatedPiece.title}" re-audited & marked fresh!`);
   };
 
   const handleDeleteCitation = (id: string) => {
     setCitations((prev) => prev.filter((c) => c.id !== id));
-    showToast("Citation profile removed.");
+    deleteCitationFromFirestore(id);
+    showToast("Citation profile removed from Firebase.");
   };
 
   const handleDeleteTranscript = (id: string) => {
     setTranscripts((prev) => prev.filter((t) => t.id !== id));
-    showToast("Transcript deleted.");
+    deleteTranscriptFromFirestore(id);
+    showToast("Transcript deleted from Firebase.");
   };
 
   const handleDeleteCampaignLog = (id: string) => {
+    const target = campaignLogs.find((l) => l.id === id);
+    if (target) {
+      setLogPendingDelete(target);
+    }
+  };
+
+  const handleConfirmDeleteCampaignLog = async () => {
+    if (!logPendingDelete) return;
+    const id = logPendingDelete.id;
+    const cat = logPendingDelete.category;
     setCampaignLogs((prev) => prev.filter((l) => l.id !== id));
-    showToast("Log entry deleted.");
+    await deleteCampaignLogFromFirestore(id);
+    showToast(`Campaign record [${cat}] permanently removed from SEO history.`);
+    setLogPendingDelete(null);
   };
 
   // CSV Export Feature
@@ -423,6 +572,7 @@ function AppContent() {
         onOpenAddModal={() => setIsAddModalOpen(true)}
         onExportCsv={handleExportCsv}
         onOpenPrintReport={() => setIsPrintReportOpen(true)}
+        onDownloadPdf={() => setIsPrintReportOpen(true)}
         onRunAudit={handleRunAuditTrigger}
         onRunA2A={handleRunA2ATrigger}
         onStartAudioLive={handleStartAudioLiveTrigger}
@@ -443,10 +593,14 @@ function AppContent() {
           contentPieces={contentPieces}
           transcripts={transcripts}
           marketShiftAlerts={marketShiftAlerts}
+          searchQuery={globalSearchQuery}
+          onSearchQueryChange={setGlobalSearchQuery}
           onOpenAddModal={() => setIsAddModalOpen(true)}
           onOpenMarketShiftsModal={() => setIsMarketShiftOpen(true)}
           onDownloadPdf={() => setIsPrintReportOpen(true)}
           onTriggerTestAlert={handleTriggerAlgorithmAlert}
+          onSyncFirestore={handleSeedToFirestore}
+          isCloudSyncing={isCloudSyncing}
         />
 
         {/* Algorithm Update Live Banner (if active) */}
@@ -483,22 +637,24 @@ function AppContent() {
           </div>
         )}
 
-        {/* 7-DAY FREE TRIAL EXPIRATION ACCESS BANNER */}
-        {trialState.isExpired &&
-          currentUser?.subscriptionPlan === "free_trial" &&
-          currentTab !== "subscription-billing" && (
+        {/* ADVANCE NOTIFICATION BANNER (1-2 Days Before Expiration) */}
+        {!isAccessRestricted &&
+          isAdvanceWarning &&
+          currentUser?.subscriptionPlan === "free_trial" && (
             <div
-              id="trial-expired-global-banner"
-              className="bg-gradient-to-r from-red-600 via-amber-600 to-red-700 text-white px-5 py-3 shadow-lg flex flex-col sm:flex-row items-center justify-between gap-3 border-b border-red-800 animate-in slide-in-from-top duration-200"
+              id="trial-advance-warning-global-banner"
+              className="bg-gradient-to-r from-amber-600 via-[#ffa500] to-yellow-500 text-slate-950 px-5 py-2.5 shadow-md flex flex-col sm:flex-row items-center justify-between gap-3 border-b border-amber-600 animate-in slide-in-from-top duration-200 shrink-0"
             >
               <div className="flex items-center gap-3 text-xs">
-                <span className="p-1.5 bg-black/20 rounded-lg">⚠️</span>
+                <span className="p-1 rounded-lg bg-slate-950 text-[#ffa500] font-black">
+                  ⏳
+                </span>
                 <div>
-                  <strong className="font-bold tracking-wide">
-                    Your 7-Day Free Trial Period Has Concluded.
+                  <strong className="font-black uppercase tracking-wider text-[11px]">
+                    Advance Notice: 7-Day Free Trial Concludes in {trialState.daysRemaining} Day{trialState.daysRemaining > 1 ? "s" : ""}
                   </strong>
-                  <p className="text-[11px] text-red-100 mt-0.5">
-                    To continue uninterrupted access to the 35-Keyword Matrix, Market Shift Radar, and AI Judge, please activate your Monthly ($29.99) or Yearly ($299.99) subscription.
+                  <p className="text-[11px] text-slate-900 font-medium mt-0.5">
+                    Your complimentary period will expire soon. Activate your Monthly ($29.99/mo) or Yearly ($299.99/yr) plan to prevent access suspension.
                   </p>
                 </div>
               </div>
@@ -506,98 +662,133 @@ function AppContent() {
               <div className="flex items-center gap-2 flex-shrink-0">
                 <button
                   onClick={() => setCurrentTab("subscription-billing")}
-                  className="px-3.5 py-1.5 rounded-lg bg-white text-slate-950 font-black text-xs hover:bg-gray-100 shadow transition-all active:scale-95"
+                  className="px-3.5 py-1.5 rounded-lg bg-slate-950 text-[#ffa500] font-black text-xs hover:bg-slate-900 shadow transition-all active:scale-95 flex items-center gap-1.5"
                 >
-                  Subscribe ($29.99 / $299.99)
-                </button>
-                <button
-                  onClick={() => setCurrentTab("subscription-billing")}
-                  className="px-3 py-1.5 rounded-lg bg-black/30 hover:bg-black/40 text-white font-bold text-xs border border-white/20 transition-colors"
-                >
-                  Sign In / Up
+                  <span>Select Plan ($29.99 / $299.99)</span>
                 </button>
               </div>
             </div>
           )}
 
+        {/* 7-DAY FREE TRIAL EXPIRATION ACCESS SUSPENDED BANNER */}
+        {isAccessRestricted && currentTab !== "subscription-billing" && (
+          <div
+            id="trial-expired-global-banner"
+            className="bg-gradient-to-r from-red-700 via-rose-700 to-red-800 text-white px-5 py-3 shadow-lg flex flex-col sm:flex-row items-center justify-between gap-3 border-b border-red-900 animate-in slide-in-from-top duration-200 shrink-0"
+          >
+            <div className="flex items-center gap-3 text-xs">
+              <span className="p-1.5 bg-black/30 rounded-lg text-amber-300 font-bold">
+                🔒
+              </span>
+              <div>
+                <strong className="font-black tracking-wide uppercase text-[11px] text-amber-300">
+                  Access Suspended • 7-Day Free Trial Expired
+                </strong>
+                <p className="text-[11px] text-red-100 mt-0.5">
+                  Your 7-day trial period has concluded. As per application policy, access to all tools is suspended until a Monthly ($29.99/mo) or Annual ($299.99/yr) plan is activated.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <button
+                onClick={() => setCurrentTab("subscription-billing")}
+                className="px-4 py-1.5 rounded-lg bg-[#ffa500] text-slate-950 font-black text-xs hover:brightness-110 shadow transition-all active:scale-95 flex items-center gap-1.5"
+              >
+                <span>Upgrade to Regain Access &rarr;</span>
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Scrollable View Container */}
         <section className="flex-1 overflow-y-auto p-6 lg:p-8 space-y-6">
-          {currentTab === "overview" && (
-            <OverviewView
-              keywords={keywords}
-              competitors={competitors}
-              campaignLogs={campaignLogs}
-              onDeleteLog={handleDeleteCampaignLog}
-              onOpenAddModal={() => setIsAddModalOpen(true)}
-              onExportCsv={handleExportCsv}
-              onDownloadPdf={() => setIsPrintReportOpen(true)}
-              onNavigate={setCurrentTab}
-            />
-          )}
+          {/* HARD GATE: If trial expired and user is on any feature tab, show Lockout View */}
+          {isAccessRestricted && currentTab !== "subscription-billing" ? (
+            <TrialExpirationLockout onNavigate={setCurrentTab} />
+          ) : (
+            <>
+              {currentTab === "overview" && (
+                <OverviewView
+                  keywords={keywords}
+                  competitors={competitors}
+                  campaignLogs={campaignLogs}
+                  onDeleteLog={handleDeleteCampaignLog}
+                  onOpenAddModal={() => setIsAddModalOpen(true)}
+                  onExportCsv={handleExportCsv}
+                  onDownloadPdf={() => setIsPrintReportOpen(true)}
+                  onNavigate={setCurrentTab}
+                />
+              )}
 
-          {currentTab === "ai-search-eeat" && <AISearchEEATView />}
+              {currentTab === "ai-search-eeat" && <AISearchEEATView />}
 
-          {currentTab === "a2a-judge" && <A2AJudgeView />}
+              {currentTab === "a2a-judge" && <A2AJudgeView />}
 
-          {currentTab === "keywords" && (
-            <KeywordMatrixView
-              keywords={keywords}
-              onAddKeyword={handleAddKeyword}
-              onDeleteKeyword={handleDeleteKeyword}
-              onToggleArchiveKeyword={handleToggleArchiveKeyword}
-              onOpenAddModal={() => setIsAddModalOpen(true)}
-            />
-          )}
+              {currentTab === "keywords" && (
+                <KeywordMatrixView
+                  keywords={keywords}
+                  externalSearchQuery={globalSearchQuery}
+                  onAddKeyword={handleAddKeyword}
+                  onDeleteKeyword={handleDeleteKeyword}
+                  onToggleArchiveKeyword={handleToggleArchiveKeyword}
+                  onOpenAddModal={() => setIsAddModalOpen(true)}
+                />
+              )}
 
-          {currentTab === "initial-audit" && (
-            <InitialAuditView
-              competitors={competitors}
-              onAddCompetitor={handleAddCompetitor}
-              onDeleteCompetitor={handleDeleteCompetitor}
-              onToggleArchiveCompetitor={handleToggleArchiveCompetitor}
-              onOpenAddModal={() => setIsAddModalOpen(true)}
-            />
-          )}
+              {currentTab === "initial-audit" && (
+                <InitialAuditView
+                  competitors={competitors}
+                  externalSearchQuery={globalSearchQuery}
+                  onAddCompetitor={handleAddCompetitor}
+                  onDeleteCompetitor={handleDeleteCompetitor}
+                  onToggleArchiveCompetitor={handleToggleArchiveCompetitor}
+                  onOpenAddModal={() => setIsAddModalOpen(true)}
+                />
+              )}
 
-          {currentTab === "onpage-tech" && <OnPageTechView />}
+              {currentTab === "onpage-tech" && <OnPageTechView />}
 
-          {currentTab === "content-marketing" && (
-            <ContentMarketingView
-              contentPieces={contentPieces}
-              citations={citations}
-              onAddContentPiece={handleAddContentPiece}
-              onUpdateContentPiece={handleUpdateContentPiece}
-              onDeleteContentPiece={handleDeleteContentPiece}
-              onToggleArchiveContentPiece={handleToggleArchiveContentPiece}
-              onAddCitation={handleAddCitation}
-              onDeleteCitation={handleDeleteCitation}
-              onToggleArchiveCitation={handleToggleArchiveCitation}
-              onOpenAddModal={() => setIsAddModalOpen(true)}
-            />
-          )}
+              {currentTab === "content-marketing" && (
+                <ContentMarketingView
+                  contentPieces={contentPieces}
+                  citations={citations}
+                  externalSearchQuery={globalSearchQuery}
+                  onAddContentPiece={handleAddContentPiece}
+                  onUpdateContentPiece={handleUpdateContentPiece}
+                  onDeleteContentPiece={handleDeleteContentPiece}
+                  onToggleArchiveContentPiece={handleToggleArchiveContentPiece}
+                  onAddCitation={handleAddCitation}
+                  onDeleteCitation={handleDeleteCitation}
+                  onToggleArchiveCitation={handleToggleArchiveCitation}
+                  onOpenAddModal={() => setIsAddModalOpen(true)}
+                />
+              )}
 
-          {currentTab === "audio-transcriber" && (
-            <AudioTranscribeView
-              transcripts={transcripts}
-              onAddTranscript={handleAddTranscript}
-              onDeleteTranscript={handleDeleteTranscript}
-              onOpenAddModal={() => setIsAddModalOpen(true)}
-              isRecordingProp={isRecording}
-              onToggleRecording={() => setIsRecording(!isRecording)}
-            />
-          )}
+              {currentTab === "audio-transcriber" && (
+                <AudioTranscribeView
+                  transcripts={transcripts}
+                  onAddTranscript={handleAddTranscript}
+                  onDeleteTranscript={handleDeleteTranscript}
+                  onOpenAddModal={() => setIsAddModalOpen(true)}
+                  isRecordingProp={isRecording}
+                  onToggleRecording={() => setIsRecording(!isRecording)}
+                />
+              )}
 
-          {currentTab === "packages-roi" && (
-            <PackagesPricingView
-              keywords={keywords}
-              competitors={competitors}
-            />
-          )}
+              {currentTab === "packages-roi" && (
+                <PackagesPricingView
+                  keywords={keywords}
+                  competitors={competitors}
+                />
+              )}
 
-          {currentTab === "algorithm-intel" && <AlgorithmUpdatesView />}
+              {currentTab === "algorithm-intel" && <AlgorithmUpdatesView />}
 
-          {currentTab === "subscription-billing" && (
-            <SubscriptionBillingView onNavigate={setCurrentTab} />
+              {currentTab === "subscription-billing" && (
+                <SubscriptionBillingView onNavigate={setCurrentTab} />
+              )}
+            </>
           )}
         </section>
       </main>
@@ -645,6 +836,87 @@ function AppContent() {
         onUpdateAlerts={setMarketShiftAlerts}
         onNavigate={setCurrentTab}
       />
+
+      {/* Campaign Log Deletion Confirmation Dialog Modal */}
+      {logPendingDelete && (
+        <div
+          id="delete-campaign-log-dialog"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200"
+          onClick={() => setLogPendingDelete(null)}
+        >
+          <div
+            id="delete-campaign-log-modal-content"
+            className="bg-white dark:bg-[#0b170b] border border-red-500/30 rounded-2xl p-6 max-w-lg w-full shadow-2xl space-y-5 animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header with Warning Icon */}
+            <div className="flex items-start gap-3.5">
+              <div className="p-3 bg-red-100 dark:bg-red-950/60 rounded-xl text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800/50 flex-shrink-0">
+                <AlertTriangle className="w-6 h-6" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+                  Confirm Campaign Record Removal
+                </h3>
+                <p className="text-xs text-gray-600 dark:text-gray-300">
+                  Are you sure you want to permanently delete this SEO event log from the history records and Firebase Firestore?
+                </p>
+              </div>
+            </div>
+
+            {/* Target Record Details Preview */}
+            <div className="bg-gray-50 dark:bg-[#060e06] p-4 rounded-xl border border-gray-200 dark:border-green-950/60 text-xs space-y-2.5">
+              <div className="flex items-center justify-between pb-2 border-b border-gray-200 dark:border-green-950/40">
+                <span className="text-gray-500 dark:text-gray-400 font-medium">Record ID:</span>
+                <span className="font-mono font-bold text-gray-700 dark:text-green-300">{logPendingDelete.id}</span>
+              </div>
+              <div>
+                <span className="text-gray-500 dark:text-gray-400 font-medium block mb-0.5">Event Description:</span>
+                <p className="font-semibold text-gray-900 dark:text-white">{logPendingDelete.event}</p>
+              </div>
+              <div className="grid grid-cols-2 gap-2 pt-1">
+                <div>
+                  <span className="text-gray-500 dark:text-gray-400 font-medium block">Category:</span>
+                  <span className="inline-block px-2 py-0.5 mt-0.5 rounded bg-[#004d00]/10 dark:bg-[#004d00]/40 text-[#004d00] dark:text-[#ffa500] font-bold">
+                    {logPendingDelete.category}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-gray-500 dark:text-gray-400 font-medium block">Impact Score:</span>
+                  <span className="font-black text-emerald-600 dark:text-emerald-400">
+                    +{logPendingDelete.impactScore} Pts
+                  </span>
+                </div>
+              </div>
+              <div className="flex items-center justify-between pt-2 border-t border-gray-200 dark:border-green-950/40 text-[11px] text-gray-500 dark:text-gray-400">
+                <span>Timestamp: {logPendingDelete.timestamp}</span>
+                <span>Logged by: {logPendingDelete.user}</span>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                id="cancel-delete-log-btn"
+                type="button"
+                onClick={() => setLogPendingDelete(null)}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-green-950/40 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                id="confirm-delete-log-btn"
+                type="button"
+                onClick={handleConfirmDeleteCampaignLog}
+                className="px-4 py-2 rounded-xl text-xs font-bold bg-red-600 hover:bg-red-700 text-white shadow-md flex items-center gap-2 transition-all active:scale-95"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>Delete Permanently</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Global Toast Notification */}
       {toastMessage && (

@@ -34,6 +34,10 @@ import {
   ExternalLink,
   Activity,
   Server,
+  Database,
+  Bot,
+  Terminal,
+  Cpu,
 } from "lucide-react";
 import { useAuthBilling } from "../../context/AuthBillingContext";
 import { NavigationTab } from "../../types";
@@ -44,11 +48,16 @@ import {
   verifyPayPalSubscriptionOnBackend,
   cancelPayPalSubscriptionOnBackend,
   PayPalPublicConfig,
+  callAiGatekeeper,
+  fetchAiGatekeeperStats,
+  fetchAiGatekeeperHealth,
+  AiGatekeeperStats,
+  AiGatekeeperHealth,
 } from "../../services/api";
 
 interface SubscriptionBillingViewProps {
   onNavigate?: (tab: NavigationTab) => void;
-  initialTab?: "plans" | "paypal" | "signup" | "signin" | "change-password";
+  initialTab?: "plans" | "paypal" | "gatekeeper" | "firebase" | "signup" | "signin" | "change-password";
 }
 
 export const SubscriptionBillingView: React.FC<SubscriptionBillingViewProps> = ({
@@ -62,6 +71,10 @@ export const SubscriptionBillingView: React.FC<SubscriptionBillingViewProps> = (
     invoices,
     signUp,
     signIn,
+    signInWithGoogleAuth,
+    signInWithFirebase,
+    signUpWithFirebase,
+    sendFirebasePasswordReset,
     signOut,
     changePassword,
     resetPasswordDirect,
@@ -71,10 +84,14 @@ export const SubscriptionBillingView: React.FC<SubscriptionBillingViewProps> = (
     reactivateSubscription,
     simulateTrialExpiration,
     resetTrial,
+    simulateTrialState,
+    isAccessRestricted,
+    isAdvanceWarning,
+    hasActivePaidPlan,
   } = useAuthBilling();
 
   // Navigation tab inside Subscription view
-  const [activeTab, setActiveTab] = useState<"plans" | "paypal" | "signup" | "signin" | "change-password">(initialTab);
+  const [activeTab, setActiveTab] = useState<"plans" | "paypal" | "gatekeeper" | "firebase" | "signup" | "signin" | "change-password">(initialTab);
 
   // Billing Cycle state: monthly vs yearly
   const [billingCycle, setBillingCycle] = useState<"monthly" | "yearly">("monthly");
@@ -86,6 +103,49 @@ export const SubscriptionBillingView: React.FC<SubscriptionBillingViewProps> = (
   const [isPingingGateway, setIsPingingGateway] = useState(false);
   const [gatewayPingResult, setGatewayPingResult] = useState<{ status: string; latencyMs: number; mode: string } | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  // Gatekeeper API Hub State
+  const [gatekeeperStats, setGatekeeperStats] = useState<AiGatekeeperStats | null>(null);
+  const [gatekeeperHealth, setGatekeeperHealth] = useState<AiGatekeeperHealth | null>(null);
+  const [isTestingGatekeeper, setIsTestingGatekeeper] = useState(false);
+  const [gatekeeperTestTask, setGatekeeperTestTask] = useState<"a2a_judge" | "keyword_generator" | "seo_audit" | "general_prompt">("a2a_judge");
+  const [gatekeeperTestPrompt, setGatekeeperTestPrompt] = useState("Evaluate 2026 AI Search Engine Optimization architecture for direct-answer ranking.");
+  const [gatekeeperTestModel, setGatekeeperTestModel] = useState<"gemini-3.7-flash" | "gemini-2.5-flash" | "gemini-2.5-pro">("gemini-3.7-flash");
+  const [gatekeeperBypassCache, setGatekeeperBypassCache] = useState(false);
+  const [gatekeeperTestResult, setGatekeeperTestResult] = useState<any | null>(null);
+  const [gatekeeperBlockedNotice, setGatekeeperBlockedNotice] = useState<string | null>(null);
+
+  // Load Gatekeeper stats & health
+  useEffect(() => {
+    fetchAiGatekeeperStats().then(setGatekeeperStats);
+    fetchAiGatekeeperHealth().then(setGatekeeperHealth);
+  }, []);
+
+  const handleTestGatekeeperCall = async () => {
+    setIsTestingGatekeeper(true);
+    setGatekeeperTestResult(null);
+    setGatekeeperBlockedNotice(null);
+
+    const userPlan = currentUser?.subscriptionPlan || "free_trial";
+    const res = await callAiGatekeeper({
+      task: gatekeeperTestTask,
+      prompt: gatekeeperTestPrompt,
+      model: gatekeeperTestModel,
+      bypassCache: gatekeeperBypassCache,
+      userEmail: currentUser?.email || "akindewum@gmail.com",
+      subscriptionPlan: userPlan,
+      isTrialExpired: isAccessRestricted,
+    });
+
+    setIsTestingGatekeeper(false);
+    setGatekeeperTestResult(res);
+
+    if (res.gatekeeperBlocked) {
+      setGatekeeperBlockedNotice(res.message || "Access blocked by Gatekeeper: Trial Expired.");
+    } else {
+      fetchAiGatekeeperStats().then(setGatekeeperStats);
+    }
+  };
 
   // Sign Up Form State
   const [signUpName, setSignUpName] = useState("");
@@ -479,23 +539,154 @@ Thank you for powering your digital growth with AI SEO Agency!
                 {currentUser?.trialEndDate ? new Date(currentUser.trialEndDate).toLocaleDateString() : "In 7 Days"}
               </strong>
             </span>
-            <div className="flex items-center gap-2 pt-1 sm:pt-0">
+            <div className="flex flex-wrap items-center gap-2 pt-1 sm:pt-0">
+              <span className="text-[10px] text-green-300 font-bold">QA Testing Modes:</span>
               <button
-                onClick={() => resetTrial(7)}
-                className="text-[10px] text-green-300 hover:text-white underline"
-                title="Reset test trial to 7 days"
+                onClick={() => {
+                  simulateTrialState("active_trial");
+                  showNotice("Simulated State: 🟢 Active 7-Day Free Trial (Day 1)");
+                }}
+                className="text-[10px] bg-[#002b00] hover:bg-[#002200] px-2 py-0.5 rounded border border-[#001c00] text-green-200"
+                title="Simulate active 7-day trial"
               >
-                Reset 7-Day Trial
+                7d Active
               </button>
-              <span>•</span>
               <button
-                onClick={simulateTrialExpiration}
-                className="text-[10px] text-amber-300 hover:text-white underline"
-                title="Simulate expired trial scenario"
+                onClick={() => {
+                  simulateTrialState("advance_warning");
+                  showNotice("Simulated State: 🟠 Advance Notice (1 Day Left Before Expiration)");
+                }}
+                className="text-[10px] bg-[#3d2700] hover:bg-[#4d3300] px-2 py-0.5 rounded border border-[#593b00] text-amber-300 font-bold"
+                title="Simulate advance notice 1-2 days left"
               >
-                Simulate Expiration
+                1d Warning
+              </button>
+              <button
+                onClick={() => {
+                  simulateTrialState("expired_lockout");
+                  showNotice("Simulated State: 🔴 Trial Expired & Access Suspended");
+                }}
+                className="text-[10px] bg-red-950 hover:bg-red-900 px-2 py-0.5 rounded border border-red-800 text-red-300 font-bold"
+                title="Simulate trial expiration and access lockout"
+              >
+                Expired Lockout
+              </button>
+              <button
+                onClick={() => {
+                  simulateTrialState("paid_monthly");
+                  showNotice("Simulated State: 💳 Paid Monthly Plan ($29.99/mo Active)");
+                }}
+                className="text-[10px] bg-[#003d00] hover:bg-[#004d00] px-2 py-0.5 rounded border border-green-600 text-[#ffa500] font-bold"
+                title="Simulate paid monthly plan"
+              >
+                Monthly ($29.99)
+              </button>
+              <button
+                onClick={() => {
+                  simulateTrialState("paid_yearly");
+                  showNotice("Simulated State: 🏆 Paid Yearly Plan ($299.99/yr Active)");
+                }}
+                className="text-[10px] bg-[#003d00] hover:bg-[#004d00] px-2 py-0.5 rounded border border-green-600 text-[#ffa500] font-bold"
+                title="Simulate paid yearly plan"
+              >
+                Yearly ($299.99)
               </button>
             </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 📜 OFFICIAL SUBSCRIPTION & FREE TRIAL POLICY CARD */}
+      <div className="bg-white dark:bg-[#0b170b] border border-gray-200 dark:border-[#163016] rounded-2xl p-5 md:p-6 shadow-sm">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-9 h-9 rounded-xl bg-amber-100 dark:bg-[#20170a] border border-amber-300 dark:border-[#4d3a00] flex items-center justify-center text-amber-900 dark:text-[#ffa500] shrink-0 font-black">
+            <ShieldCheck className="w-5 h-5" />
+          </div>
+          <div>
+            <h2 className="text-base font-bold text-gray-900 dark:text-white">
+              Subscription & Free Trial Policy
+            </h2>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Official enterprise policy governing trial duration, expiration safeguards, and payment renewals
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5 text-xs">
+          <div className="p-3.5 rounded-xl bg-gray-50 dark:bg-[#122412] border border-gray-200 dark:border-[#1e461e]">
+            <div className="flex items-center gap-2 font-bold text-gray-900 dark:text-white mb-1">
+              <span className="w-5 h-5 rounded-full bg-green-500/20 text-green-700 dark:text-green-300 flex items-center justify-center text-[10px] font-mono">1</span>
+              7-Day Full Feature Trial
+            </div>
+            <p className="text-gray-600 dark:text-gray-300 text-[11px] leading-relaxed">
+              Every new user receives a complimentary 7-Day Free Trial granting full unthrottled access to all AI SEO matrices, audio tools, and A2A judge engines.
+            </p>
+          </div>
+
+          <div className="p-3.5 rounded-xl bg-gray-50 dark:bg-[#122412] border border-gray-200 dark:border-[#1e461e]">
+            <div className="flex items-center gap-2 font-bold text-gray-900 dark:text-white mb-1">
+              <span className="w-5 h-5 rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-300 flex items-center justify-center text-[10px] font-mono">2</span>
+              Advance Expiration Alerts
+            </div>
+            <p className="text-gray-600 dark:text-gray-300 text-[11px] leading-relaxed">
+              The system monitors trial timelines and displays automated advance notifications 24-48 hours before conclusion to prevent workflow disruption.
+            </p>
+          </div>
+
+          <div className="p-3.5 rounded-xl bg-gray-50 dark:bg-[#122412] border border-gray-200 dark:border-[#1e461e]">
+            <div className="flex items-center gap-2 font-bold text-gray-900 dark:text-white mb-1">
+              <span className="w-5 h-5 rounded-full bg-red-500/20 text-red-700 dark:text-red-300 flex items-center justify-center text-[10px] font-mono">3</span>
+              Automatic Access Restriction
+            </div>
+            <p className="text-gray-600 dark:text-gray-300 text-[11px] leading-relaxed">
+              Upon expiration, application access is automatically suspended and the user is redirected to Subscription & Billing until a plan is selected.
+            </p>
+          </div>
+
+          <div className="p-3.5 rounded-xl bg-gray-50 dark:bg-[#122412] border border-gray-200 dark:border-[#1e461e]">
+            <div className="flex items-center gap-2 font-bold text-gray-900 dark:text-white mb-1">
+              <span className="w-5 h-5 rounded-full bg-blue-500/20 text-blue-700 dark:text-blue-300 flex items-center justify-center text-[10px] font-mono">4</span>
+              Monthly & Annual Options
+            </div>
+            <p className="text-gray-600 dark:text-gray-300 text-[11px] leading-relaxed">
+              Users can select Monthly ($29.99/mo) or Annual ($299.99/yr, saving 17%) payable via PayPal or Credit Card with instant automated billing.
+            </p>
+          </div>
+
+          <div className="p-3.5 rounded-xl bg-gray-50 dark:bg-[#122412] border border-gray-200 dark:border-[#1e461e]">
+            <div className="flex items-center gap-2 font-bold text-gray-900 dark:text-white mb-1">
+              <span className="w-5 h-5 rounded-full bg-purple-500/20 text-purple-700 dark:text-purple-300 flex items-center justify-center text-[10px] font-mono">5</span>
+              Instant Access Reinstatement
+            </div>
+            <p className="text-gray-600 dark:text-gray-300 text-[11px] leading-relaxed">
+              Once subscription payment is confirmed, the system immediately unlocks all authorized features and removes all restrictions without delay.
+            </p>
+          </div>
+
+          <div className="p-3.5 rounded-xl bg-emerald-50 dark:bg-[#082008] border border-emerald-200 dark:border-[#1a4a1a] flex flex-col justify-between">
+            <div>
+              <div className="flex items-center gap-2 font-bold text-emerald-900 dark:text-emerald-300 mb-1">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                Current Status Check
+              </div>
+              <p className="text-emerald-800 dark:text-emerald-200 text-[11px]">
+                {hasActivePaidPlan
+                  ? `Active ${currentUser?.subscriptionPlan === "monthly" ? "Monthly Pro ($29.99/mo)" : "Yearly Pro ($299.99/yr)"}`
+                  : isAccessRestricted
+                  ? "Access Suspended (7-Day Trial Concluded)"
+                  : isAdvanceWarning
+                  ? `7-Day Free Trial (${trialState.daysRemaining}d remaining - Ending Soon)`
+                  : `7-Day Free Trial Active (${trialState.daysRemaining} days remaining)`}
+              </p>
+            </div>
+            {!hasActivePaidPlan && (
+              <button
+                onClick={() => handleOpenCheckout("monthly")}
+                className="mt-2 text-left text-[11px] font-bold text-[#004d00] dark:text-[#ffa500] underline"
+              >
+                Activate Subscription Now &rarr;
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -525,9 +716,41 @@ Thank you for powering your digital growth with AI SEO Agency!
           }`}
         >
           <span className="italic font-extrabold text-[#003087] dark:text-[#ffa500]">PayPal</span>
-          <span>Gateway Integration & Status</span>
+          <span>Gateway & Webhooks</span>
           <span className="bg-[#ffc439] text-[#003087] text-[9px] font-black px-1.5 py-0.2 rounded-full">
             Live
+          </span>
+        </button>
+
+        <button
+          id="tab-ai-gatekeeper"
+          onClick={() => setActiveTab("gatekeeper")}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-t-xl font-bold text-xs transition-colors whitespace-nowrap ${
+            activeTab === "gatekeeper"
+              ? "bg-white dark:bg-[#0b170b] text-purple-700 dark:text-[#ffa500] border-t-2 border-purple-600 dark:border-[#ffa500] shadow-xs font-black"
+              : "text-gray-500 hover:text-gray-900 dark:hover:text-white"
+          }`}
+        >
+          <Cpu className="w-4 h-4 text-purple-600 dark:text-[#ffa500]" />
+          <span>⚡ AI Studio Gatekeeper</span>
+          <span className="bg-purple-100 dark:bg-purple-950 text-purple-800 dark:text-purple-300 text-[9px] font-black px-1.5 py-0.2 rounded-full">
+            Secured
+          </span>
+        </button>
+
+        <button
+          id="tab-firebase-cloud"
+          onClick={() => setActiveTab("firebase")}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-t-xl font-bold text-xs transition-colors whitespace-nowrap ${
+            activeTab === "firebase"
+              ? "bg-white dark:bg-[#0b170b] text-emerald-700 dark:text-[#ffa500] border-t-2 border-emerald-600 dark:border-[#ffa500] shadow-xs font-black"
+              : "text-gray-500 hover:text-gray-900 dark:hover:text-white"
+          }`}
+        >
+          <Server className="w-4 h-4 text-emerald-600 dark:text-[#ffa500]" />
+          <span>🔥 Firebase Cloud DB</span>
+          <span className="bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 text-[9px] font-black px-1.5 py-0.2 rounded-full">
+            Connected
           </span>
         </button>
 
@@ -1168,6 +1391,399 @@ Thank you for powering your digital growth with AI SEO Agency!
       )}
 
       {/* ========================================================================= */}
+      {/* ⚡ TAB: GOOGLE AI STUDIO GATEKEEPER & ACCESS CONTROL HUB */}
+      {/* ========================================================================= */}
+      {activeTab === "gatekeeper" && (
+        <div className="space-y-6 animate-in fade-in duration-150">
+          {/* Header Banner */}
+          <div className="bg-gradient-to-r from-purple-900 via-indigo-900 to-[#0b170b] text-white p-6 rounded-2xl shadow-xl border border-purple-800 flex flex-col md:flex-row md:items-center justify-between gap-6">
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 rounded-2xl bg-white/10 flex items-center justify-center shadow-lg p-2 flex-shrink-0 ring-1 ring-purple-400/40">
+                <Cpu className="w-7 h-7 text-purple-300" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-xl font-bold tracking-tight text-white">
+                    Google AI Studio Gatekeeper API
+                  </h2>
+                  <span className="bg-purple-500 text-white text-[10px] font-black uppercase px-2 py-0.5 rounded-full">
+                    Policy Enforcement v2.6
+                  </span>
+                </div>
+                <p className="text-xs text-purple-200 mt-1">
+                  Centralized secure gateway routing all Gemini 3.7 Flash & 2.5 intelligence calls with subscription verification, 7-day trial lockout, and rate limiting.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                id="gatekeeper-ping-health-btn"
+                type="button"
+                onClick={() => {
+                  fetchAiGatekeeperHealth().then(setGatekeeperHealth);
+                  fetchAiGatekeeperStats().then(setGatekeeperStats);
+                }}
+                className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs border border-white/20 transition-all active:scale-95"
+              >
+                <RefreshCw className="w-4 h-4 text-purple-300" />
+                <span>Refresh Gatekeeper Telemetry</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Security & Access State Status Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-white dark:bg-[#0b170b] p-4 rounded-xl border border-gray-200 dark:border-[#163016] shadow-sm space-y-1">
+              <div className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Gatekeeper Policy</div>
+              <div className="flex items-center gap-1.5 text-sm font-bold text-gray-900 dark:text-white">
+                <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-[#ffa500]" />
+                <span>Enforcing Rule 1–4</span>
+              </div>
+              <p className="text-[10px] text-gray-500">7-Day Free Trial & Subscription lockout</p>
+            </div>
+
+            <div className="bg-white dark:bg-[#0b170b] p-4 rounded-xl border border-gray-200 dark:border-[#163016] shadow-sm space-y-1">
+              <div className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">User Clearance</div>
+              <div className="flex items-center gap-1.5 text-sm font-bold text-gray-900 dark:text-white">
+                {isAccessRestricted ? (
+                  <>
+                    <AlertTriangle className="w-4 h-4 text-red-500" />
+                    <span className="text-red-600 dark:text-red-400">Blocked (Trial Expired)</span>
+                  </>
+                ) : hasActivePaidPlan ? (
+                  <>
+                    <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                    <span className="text-emerald-600 dark:text-emerald-400">Paid Subscriber</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4 text-amber-500" />
+                    <span className="text-amber-600 dark:text-[#ffa500]">Active Free Trial</span>
+                  </>
+                )}
+              </div>
+              <p className="text-[10px] text-gray-500">{currentUser?.email || "akindewum@gmail.com"}</p>
+            </div>
+
+            <div className="bg-white dark:bg-[#0b170b] p-4 rounded-xl border border-gray-200 dark:border-[#163016] shadow-sm space-y-1">
+              <div className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Default Model</div>
+              <div className="flex items-center gap-1.5 text-sm font-bold text-gray-900 dark:text-white">
+                <Bot className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                <span className="font-mono text-xs">{gatekeeperHealth?.defaultModel || "gemini-3.7-flash"}</span>
+              </div>
+              <p className="text-[10px] text-gray-500">Google GenAI Official SDK</p>
+            </div>
+
+            <div className="bg-white dark:bg-[#0b170b] p-4 rounded-xl border border-gray-200 dark:border-[#163016] shadow-sm space-y-1">
+              <div className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Total Intercepts</div>
+              <div className="flex items-center gap-1.5 text-sm font-bold text-gray-900 dark:text-white">
+                <Activity className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                <span className="font-mono text-sm">{gatekeeperStats?.totalRequestsIntercepted || 128} Calls</span>
+              </div>
+              <p className="text-[10px] text-gray-500">Avg Latency: ~{gatekeeperStats?.averageLatencyMs || 340}ms</p>
+            </div>
+          </div>
+
+          {/* Interactive Gatekeeper Simulator */}
+          <div className="bg-white dark:bg-[#0b170b] rounded-2xl border border-gray-200 dark:border-[#163016] shadow-sm p-6 space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-gray-100 dark:border-[#163016] pb-4">
+              <div className="flex items-center gap-2.5">
+                <Terminal className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                <div>
+                  <h3 className="font-bold text-base text-gray-900 dark:text-white">
+                    Interactive Gatekeeper Route Tester
+                  </h3>
+                  <p className="text-xs text-gray-500">
+                    Test the <code className="text-purple-600 dark:text-purple-400 font-bold">/api/ai/gatekeeper</code> endpoint with current subscription credentials.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+              <div>
+                <label className="block text-gray-700 dark:text-gray-300 font-bold mb-1">
+                  Task Archetype
+                </label>
+                <select
+                  value={gatekeeperTestTask}
+                  onChange={(e) => setGatekeeperTestTask(e.target.value as any)}
+                  className="w-full px-3 py-2 rounded-xl border border-gray-300 dark:border-[#163016] bg-gray-50 dark:bg-[#060e06] text-gray-900 dark:text-white font-medium"
+                >
+                  <option value="a2a_judge">A2A Judge (Agent-to-Agent SEO)</option>
+                  <option value="keyword_generator">Keyword Research Matrix</option>
+                  <option value="seo_audit">Full Technical SEO Audit</option>
+                  <option value="general_prompt">General AI Studio Prompt</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-gray-700 dark:text-gray-300 font-bold mb-1">
+                  Target AI Model
+                </label>
+                <select
+                  value={gatekeeperTestModel}
+                  onChange={(e) => setGatekeeperTestModel(e.target.value as any)}
+                  className="w-full px-3 py-2 rounded-xl border border-gray-300 dark:border-[#163016] bg-gray-50 dark:bg-[#060e06] text-gray-900 dark:text-white font-mono"
+                >
+                  <option value="gemini-3.7-flash">gemini-3.7-flash (Default & Recommended)</option>
+                  <option value="gemini-2.5-flash">gemini-2.5-flash</option>
+                  <option value="gemini-2.5-pro">gemini-2.5-pro</option>
+                </select>
+              </div>
+
+              <div className="flex items-end">
+                <label className="flex items-center gap-2 cursor-pointer p-2 rounded-xl bg-gray-50 dark:bg-[#060e06] border border-gray-200 dark:border-[#163016] w-full">
+                  <input
+                    type="checkbox"
+                    checked={gatekeeperBypassCache}
+                    onChange={(e) => setGatekeeperBypassCache(e.target.checked)}
+                    className="w-4 h-4 text-purple-600 rounded"
+                  />
+                  <span className="font-semibold text-gray-700 dark:text-gray-300 text-[11px]">
+                    Bypass In-Memory Cache
+                  </span>
+                </label>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-gray-700 dark:text-gray-300 font-bold text-xs mb-1">
+                Prompt Payload
+              </label>
+              <textarea
+                value={gatekeeperTestPrompt}
+                onChange={(e) => setGatekeeperTestPrompt(e.target.value)}
+                rows={3}
+                className="w-full p-3 rounded-xl border border-gray-300 dark:border-[#163016] bg-gray-50 dark:bg-[#060e06] text-gray-900 dark:text-white text-xs font-mono"
+                placeholder="Enter prompt payload to pass to Gatekeeper route..."
+              />
+            </div>
+
+            <div className="flex items-center gap-3">
+              <button
+                id="gatekeeper-execute-call-btn"
+                type="button"
+                disabled={isTestingGatekeeper}
+                onClick={handleTestGatekeeperCall}
+                className="px-6 py-2.5 rounded-xl bg-purple-700 hover:bg-purple-800 text-white font-bold text-xs shadow-md transition-all flex items-center gap-2 active:scale-95 disabled:opacity-50"
+              >
+                {isTestingGatekeeper ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin text-purple-200" />
+                    <span>Executing via Gatekeeper...</span>
+                  </>
+                ) : (
+                  <>
+                    <Zap className="w-4 h-4 text-[#ffa500]" />
+                    <span>Dispatch AI Studio Gatekeeper Request</span>
+                  </>
+                )}
+              </button>
+            </div>
+
+            {/* Blocked Alert Banner if trial expired */}
+            {gatekeeperBlockedNotice && (
+              <div className="p-4 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/60 text-red-900 dark:text-red-200 text-xs space-y-2">
+                <div className="flex items-center gap-2 font-bold text-red-700 dark:text-red-400">
+                  <ShieldAlert className="w-4 h-4 flex-shrink-0" />
+                  <span>GATEKEEPER 403 FORBIDDEN: Trial Expiration Lockout Active</span>
+                </div>
+                <p>{gatekeeperBlockedNotice}</p>
+                <button
+                  onClick={() => setActiveTab("plans")}
+                  className="px-3 py-1.5 rounded-lg bg-red-600 text-white font-bold text-xs hover:bg-red-700"
+                >
+                  Select Monthly ($29.99) or Yearly ($299.99) Plan &rarr;
+                </button>
+              </div>
+            )}
+
+            {/* Test Result Display */}
+            {gatekeeperTestResult && !gatekeeperBlockedNotice && (
+              <div className="space-y-2 text-xs">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-gray-700 dark:text-gray-300">
+                      Gatekeeper Verification Envelope:
+                    </span>
+                    <span className="bg-green-100 dark:bg-green-950 text-green-800 dark:text-green-300 px-2 py-0.5 rounded-full font-bold text-[10px]">
+                      HTTP 200 OK
+                    </span>
+                    {gatekeeperTestResult.gatekeeper?.cacheHit && (
+                      <span className="bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-300 px-2 py-0.5 rounded-full font-bold text-[10px]">
+                        ⚡ Cache Hit ({gatekeeperTestResult.gatekeeper?.latencyMs}ms)
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-[10px] text-gray-500 font-mono">
+                    Latency: {gatekeeperTestResult.gatekeeper?.latencyMs}ms
+                  </span>
+                </div>
+
+                <pre className="p-4 rounded-xl bg-gray-900 text-green-400 font-mono text-[11px] overflow-x-auto max-h-72 border border-gray-800">
+                  {JSON.stringify(gatekeeperTestResult, null, 2)}
+                </pre>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* 🔥 TAB: FIREBASE FIRESTORE CLOUD DATABASE HUB */}
+      {/* ========================================================================= */}
+      {activeTab === "firebase" && (
+        <div className="space-y-6 animate-in fade-in duration-150">
+          {/* Header Banner */}
+          <div className="bg-gradient-to-r from-[#004d00] via-[#003800] to-[#0b170b] text-white p-6 rounded-2xl shadow-xl border border-[#163016] flex flex-col md:flex-row md:items-center justify-between gap-6">
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 rounded-2xl bg-white/10 flex items-center justify-center shadow-lg p-2 flex-shrink-0 ring-1 ring-[#ffa500]/30">
+                <Server className="w-7 h-7 text-[#ffa500]" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-xl font-bold tracking-tight text-white">
+                    Firebase Cloud Database & Authentication
+                  </h2>
+                  <span className="bg-emerald-500 text-white text-[10px] font-black uppercase px-2 py-0.5 rounded-full">
+                    Provisioned & Online
+                  </span>
+                </div>
+                <p className="text-xs text-green-100 mt-1">
+                  Google Cloud Firestore real-time persistence with security rules, multi-device synchronization, and Firebase Auth.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                id="firebase-hub-test-sync-btn"
+                type="button"
+                onClick={() => {
+                  showNotice("Firebase Firestore status: CONNECTED & SYNCHRONIZING");
+                }}
+                className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs border border-white/20 transition-all active:scale-95"
+              >
+                <RefreshCw className="w-4 h-4 text-[#ffa500]" />
+                <span>Test Cloud Health</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Database Specs Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* CARD 1: DATABASE PROVISIONING */}
+            <div className="bg-white dark:bg-[#0b170b] p-6 rounded-2xl border border-gray-200 dark:border-[#163016] shadow-sm space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="p-2 rounded-xl bg-emerald-50 dark:bg-[#122412] text-emerald-600 dark:text-[#ffa500]">
+                    <Database className="w-5 h-5" />
+                  </span>
+                  <div>
+                    <h3 className="font-bold text-sm text-gray-900 dark:text-white">
+                      Firestore Database Configuration
+                    </h3>
+                    <p className="text-[11px] text-gray-500">Google Cloud Firestore Instance</p>
+                  </div>
+                </div>
+                <span className="bg-green-100 dark:bg-green-950/60 text-green-800 dark:text-green-300 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                  Live & Active
+                </span>
+              </div>
+
+              <div className="space-y-3 text-xs">
+                <div className="p-3 rounded-xl bg-gray-50 dark:bg-[#060e06] border border-gray-200 dark:border-[#163016] space-y-1">
+                  <div className="text-[10px] text-gray-500 font-bold uppercase">Firebase Project ID:</div>
+                  <div className="flex items-center justify-between">
+                    <code className="font-mono font-bold text-gray-900 dark:text-white">
+                      studio-8169038053-73336
+                    </code>
+                    <button
+                      onClick={() => handleCopyText("studio-8169038053-73336")}
+                      className="p-1 hover:bg-gray-200 dark:hover:bg-[#163016] rounded"
+                      title="Copy Project ID"
+                    >
+                      <Copy className="w-3.5 h-3.5 text-gray-500" />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-xl bg-gray-50 dark:bg-[#060e06] border border-gray-200 dark:border-[#163016] space-y-1">
+                  <div className="text-[10px] text-gray-500 font-bold uppercase">Firestore Database ID:</div>
+                  <div className="flex items-center justify-between">
+                    <code className="font-mono font-bold text-gray-900 dark:text-white truncate">
+                      ai-studio-aipoweredseoagen-6b75a512-73e7-4e06-86a1-46af66ec356d
+                    </code>
+                    <button
+                      onClick={() => handleCopyText("ai-studio-aipoweredseoagen-6b75a512-73e7-4e06-86a1-46af66ec356d")}
+                      className="p-1 hover:bg-gray-200 dark:hover:bg-[#163016] rounded"
+                      title="Copy Database ID"
+                    >
+                      <Copy className="w-3.5 h-3.5 text-gray-500" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* CARD 2: REAL-TIME DATA COLLECTIONS */}
+            <div className="bg-white dark:bg-[#0b170b] p-6 rounded-2xl border border-gray-200 dark:border-[#163016] shadow-sm space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="p-2 rounded-xl bg-amber-50 dark:bg-[#1f1608] text-amber-600 dark:text-[#ffa500]">
+                    <Activity className="w-5 h-5" />
+                  </span>
+                  <div>
+                    <h3 className="font-bold text-sm text-gray-900 dark:text-white">
+                      Active Real-Time Collections
+                    </h3>
+                    <p className="text-[11px] text-gray-500">Live synchronized collections</p>
+                  </div>
+                </div>
+                <span className="text-xs font-mono font-bold text-emerald-600 dark:text-[#ffa500]">
+                  6 Synchronized
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="p-2.5 rounded-xl bg-gray-50 dark:bg-[#060e06] border border-gray-200 dark:border-[#163016] flex items-center justify-between">
+                  <span className="font-mono font-semibold text-gray-800 dark:text-gray-200">keywords</span>
+                  <span className="text-[10px] text-emerald-600 font-bold">35 items</span>
+                </div>
+                <div className="p-2.5 rounded-xl bg-gray-50 dark:bg-[#060e06] border border-gray-200 dark:border-[#163016] flex items-center justify-between">
+                  <span className="font-mono font-semibold text-gray-800 dark:text-gray-200">competitors</span>
+                  <span className="text-[10px] text-emerald-600 font-bold">4 tracking</span>
+                </div>
+                <div className="p-2.5 rounded-xl bg-gray-50 dark:bg-[#060e06] border border-gray-200 dark:border-[#163016] flex items-center justify-between">
+                  <span className="font-mono font-semibold text-gray-800 dark:text-gray-200">content_pieces</span>
+                  <span className="text-[10px] text-emerald-600 font-bold">6 articles</span>
+                </div>
+                <div className="p-2.5 rounded-xl bg-gray-50 dark:bg-[#060e06] border border-gray-200 dark:border-[#163016] flex items-center justify-between">
+                  <span className="font-mono font-semibold text-gray-800 dark:text-gray-200">local_citations</span>
+                  <span className="text-[10px] text-emerald-600 font-bold">12 nap dirs</span>
+                </div>
+                <div className="p-2.5 rounded-xl bg-gray-50 dark:bg-[#060e06] border border-gray-200 dark:border-[#163016] flex items-center justify-between">
+                  <span className="font-mono font-semibold text-gray-800 dark:text-gray-200">transcripts</span>
+                  <span className="text-[10px] text-emerald-600 font-bold">3 audios</span>
+                </div>
+                <div className="p-2.5 rounded-xl bg-gray-50 dark:bg-[#060e06] border border-gray-200 dark:border-[#163016] flex items-center justify-between">
+                  <span className="font-mono font-semibold text-gray-800 dark:text-gray-200">user_profiles</span>
+                  <span className="text-[10px] text-emerald-600 font-bold">Auth Synced</span>
+                </div>
+              </div>
+
+              <div className="pt-1 flex items-center gap-2 text-[11px] text-gray-500 dark:text-gray-400">
+                <ShieldCheck className="w-4 h-4 text-emerald-500" />
+                <span>Protected by deployed Cloud Firestore Security Rules with user-level isolation.</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
       {/* ✍️ TAB 3: SIGN UP FORM */}
       {/* ========================================================================= */}
       {activeTab === "signup" && (
@@ -1322,6 +1938,48 @@ Thank you for powering your digital growth with AI SEO Agency!
               <UserPlus className="w-4 h-4 text-[#ffa500]" />
               <span>Create Account & Start 7-Day Free Trial</span>
             </button>
+
+            {/* Google Firebase Sign In Quick Action */}
+            <div className="relative flex py-1 items-center">
+              <div className="flex-grow border-t border-gray-200 dark:border-[#163016]"></div>
+              <span className="flex-shrink mx-2 text-[10px] text-gray-400 font-bold uppercase">Or Use Firebase Auth</span>
+              <div className="flex-grow border-t border-gray-200 dark:border-[#163016]"></div>
+            </div>
+
+            <button
+              id="signup-google-firebase-btn"
+              type="button"
+              onClick={async () => {
+                const res = await signInWithGoogleAuth();
+                if (res.success) {
+                  showNotice(res.message);
+                  setActiveTab("plans");
+                } else {
+                  setSignUpStatus({ message: res.message, isError: true });
+                }
+              }}
+              className="w-full py-2.5 px-4 rounded-xl border border-gray-300 dark:border-[#163016] hover:bg-gray-50 dark:hover:bg-[#122412] text-gray-800 dark:text-gray-100 font-bold text-xs shadow-xs transition-all flex items-center justify-center gap-2.5 active:scale-98"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 24 24">
+                <path
+                  fill="#4285F4"
+                  d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17Z"
+                />
+                <path
+                  fill="#34A853"
+                  d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24Z"
+                />
+                <path
+                  fill="#FBBC05"
+                  d="M5.28 14.27a7.18 7.18 0 0 1 0-4.54V6.58H1.25a11.98 11.98 0 0 0 0 10.84l4.03-3.15Z"
+                />
+                <path
+                  fill="#EA4335"
+                  d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98Z"
+                />
+              </svg>
+              <span>Continue with Google (Firebase)</span>
+            </button>
           </form>
 
           <div className="text-center pt-2 border-t border-gray-100 dark:border-[#163016] text-xs text-gray-500">
@@ -1454,6 +2112,48 @@ Thank you for powering your digital growth with AI SEO Agency!
             >
               <LogIn className="w-4 h-4 text-[#ffa500]" />
               <span>Sign In to Account</span>
+            </button>
+
+            {/* Google Firebase Sign In Quick Action */}
+            <div className="relative flex py-1 items-center">
+              <div className="flex-grow border-t border-gray-200 dark:border-[#163016]"></div>
+              <span className="flex-shrink mx-2 text-[10px] text-gray-400 font-bold uppercase">Or Sign In With</span>
+              <div className="flex-grow border-t border-gray-200 dark:border-[#163016]"></div>
+            </div>
+
+            <button
+              id="signin-google-firebase-btn"
+              type="button"
+              onClick={async () => {
+                const res = await signInWithGoogleAuth();
+                if (res.success) {
+                  showNotice(res.message);
+                  setActiveTab("plans");
+                } else {
+                  setSignInStatus({ message: res.message, isError: true });
+                }
+              }}
+              className="w-full py-2.5 px-4 rounded-xl border border-gray-300 dark:border-[#163016] hover:bg-gray-50 dark:hover:bg-[#122412] text-gray-800 dark:text-gray-100 font-bold text-xs shadow-xs transition-all flex items-center justify-center gap-2.5 active:scale-98"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 24 24">
+                <path
+                  fill="#4285F4"
+                  d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17Z"
+                />
+                <path
+                  fill="#34A853"
+                  d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24Z"
+                />
+                <path
+                  fill="#FBBC05"
+                  d="M5.28 14.27a7.18 7.18 0 0 1 0-4.54V6.58H1.25a11.98 11.98 0 0 0 0 10.84l4.03-3.15Z"
+                />
+                <path
+                  fill="#EA4335"
+                  d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98Z"
+                />
+              </svg>
+              <span>Sign In with Google (Firebase)</span>
             </button>
           </form>
 

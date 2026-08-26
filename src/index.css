@@ -7,6 +7,9 @@
     --text-primary: #0f172a;
     --text-secondary: #475569;
     --border-color: #e2e8f0;
+    transition: background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+                color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+                border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   .dark {
@@ -16,6 +19,35 @@
     --text-secondary: #94a3b8;
     --border-color: #163016;
     color-scheme: dark;
+  }
+
+  /* Universal smooth transition for theme color switching */
+  body,
+  div,
+  nav,
+  aside,
+  header,
+  section,
+  main,
+  article,
+  button,
+  input,
+  select,
+  textarea,
+  table,
+  th,
+  td,
+  p,
+  span,
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    transition-property: background-color, border-color, color, fill, stroke, box-shadow;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    transition-duration: 250ms;
   }
 }
 

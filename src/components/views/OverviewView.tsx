@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   FileSpreadsheet,
   Printer,
@@ -18,11 +18,16 @@ import {
   Activity,
   ArrowDownRight,
   Volume2,
+  Download,
+  Loader2,
 } from "lucide-react";
 import { MetricCards } from "../MetricCards";
 import { GrowthHeatmap } from "../GrowthHeatmap";
 import { SEOTrendRadar } from "../SEOTrendRadar";
+import { KeywordVolumeHeatmap } from "../KeywordVolumeHeatmap";
+import { CampaignImpactTrendChart } from "../CampaignImpactTrendChart";
 import { KeywordItem, CompetitorItem, CampaignLogItem, NavigationTab } from "../../types";
+import { exportElementToPdf } from "../../services/pdfExportService";
 import {
   AreaChart,
   Area,
@@ -72,6 +77,9 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
   onDownloadPdf,
   onNavigate,
 }) => {
+  const [isExportingDirectPdf, setIsExportingDirectPdf] = useState(false);
+  const [pdfStatus, setPdfStatus] = useState<string | null>(null);
+
   const topRankingsCount = keywords.filter((k) => k.currentRank <= 3).length;
 
   const topKeywordNodes = [
@@ -82,8 +90,89 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
     { keyword: "Voice Search Optimization", rank: "#1", trend: "↑ 4", trendType: "up", intent: "COMMERCIAL", intentClass: "bg-amber-50 text-amber-700" },
   ];
 
+  // Direct export of current Overview dashboard to PDF via jsPDF & html2canvas
+  const handleSaveDashboardAsPdf = async () => {
+    setIsExportingDirectPdf(true);
+    setPdfStatus("Rendering high-res dashboard snapshot...");
+    try {
+      const result = await exportElementToPdf("overview-dashboard-view", {
+        filename: `OmniRank_SEO_Overview_Dashboard_${new Date().toISOString().slice(0, 10)}.pdf`,
+        onProgress: (msg) => setPdfStatus(msg),
+      });
+      if (result.success) {
+        setPdfStatus("Downloaded successfully!");
+        setTimeout(() => setPdfStatus(null), 3000);
+      } else {
+        setPdfStatus(`Export failed: ${result.error}`);
+        setTimeout(() => setPdfStatus(null), 4000);
+      }
+    } catch (err: any) {
+      setPdfStatus(`Export error: ${err.message}`);
+      setTimeout(() => setPdfStatus(null), 4000);
+    } finally {
+      setIsExportingDirectPdf(false);
+    }
+  };
+
   return (
     <div id="overview-dashboard-view" className="space-y-6">
+      {/* Top Quick Actions Bar */}
+      <div className="bg-white dark:bg-[#0b170b] p-4 rounded-xl border border-gray-200 dark:border-green-950/80 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 no-print">
+        <div className="flex items-center gap-2.5">
+          <div className="p-2 rounded-lg bg-[#004d00]/10 dark:bg-[#004d00]/40 text-[#004d00] dark:text-[#ffa500]">
+            <Sparkles className="w-4 h-4" />
+          </div>
+          <div>
+            <h2 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2">
+              <span>Executive Overview & SGE Intelligence</span>
+              <span className="text-[10px] px-2 py-0.5 rounded-full font-mono font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300">
+                Live 2026 Q3 Sync
+              </span>
+            </h2>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              {pdfStatus || "Instant vector analytics, ranking momentum, and compound impact trajectory."}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Direct PDF Download using jsPDF-html2canvas */}
+          <button
+            id="overview-save-pdf-btn"
+            onClick={handleSaveDashboardAsPdf}
+            disabled={isExportingDirectPdf}
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-[#ffa500] hover:brightness-110 disabled:opacity-50 text-slate-950 font-bold text-xs shadow-sm transition-all active:scale-95"
+            title="Save the current Overview dashboard view directly as a formatted PDF"
+          >
+            {isExportingDirectPdf ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-950" />
+            ) : (
+              <Download className="w-3.5 h-3.5 text-slate-950" />
+            )}
+            <span>{isExportingDirectPdf ? "Generating PDF..." : "Save Overview as PDF"}</span>
+          </button>
+
+          {/* Printable Report Snapshot Modal */}
+          <button
+            id="overview-printable-snapshot-btn"
+            onClick={onDownloadPdf}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-300 dark:border-green-950/80 bg-gray-50 dark:bg-[#060e06] hover:bg-gray-100 text-xs font-semibold text-gray-700 dark:text-gray-200 transition-colors"
+          >
+            <Printer className="w-3.5 h-3.5" />
+            <span>Executive Report</span>
+          </button>
+
+          {/* CSV Export */}
+          <button
+            id="overview-export-csv-btn"
+            onClick={onExportCsv}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-300 dark:border-green-950/80 bg-gray-50 dark:bg-[#060e06] hover:bg-gray-100 text-xs font-semibold text-gray-700 dark:text-gray-200 transition-colors"
+          >
+            <FileSpreadsheet className="w-3.5 h-3.5" />
+            <span>Export CSV</span>
+          </button>
+        </div>
+      </div>
       {/* 4 Metric Cards */}
       <MetricCards
         onDownloadPdf={onDownloadPdf}
@@ -218,6 +307,12 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
 
       {/* Visual Growth Heatmap & Algorithm Update Impact Matrix */}
       <GrowthHeatmap />
+
+      {/* Recharts Keyword Search Volume Heatmap & 30-Day Traffic Trajectory */}
+      <KeywordVolumeHeatmap
+        keywords={keywords}
+        onNavigateToKeywords={() => onNavigate("keywords")}
+      />
 
       {/* Traffic Charts & Intent Distribution Section */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -399,6 +494,12 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
           </p>
         </div>
       </div>
+
+      {/* Recharts Campaign Impact Trend Analysis Line Chart */}
+      <CampaignImpactTrendChart
+        campaignLogs={campaignLogs}
+        onOpenAddModal={onOpenAddModal}
+      />
 
       {/* Campaign Event Logs & Activity Ledger */}
       <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm space-y-4">

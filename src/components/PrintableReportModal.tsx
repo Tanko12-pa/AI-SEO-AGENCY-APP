@@ -1,6 +1,7 @@
-import React from "react";
-import { X, Printer, Sparkles, CheckCircle2, TrendingUp } from "lucide-react";
+import React, { useState } from "react";
+import { X, Printer, Sparkles, CheckCircle2, TrendingUp, Download, Loader2 } from "lucide-react";
 import { KeywordItem, CompetitorItem, ContentPieceItem, LocalCitationItem } from "../types";
+import { exportElementToPdf } from "../services/pdfExportService";
 
 interface PrintableReportModalProps {
   isOpen: boolean;
@@ -19,10 +20,27 @@ export const PrintableReportModal: React.FC<PrintableReportModalProps> = ({
   contentPieces,
   citations,
 }) => {
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
+  const [exportProgress, setExportProgress] = useState<string | null>(null);
+
   if (!isOpen) return null;
 
   const handlePrint = () => {
     window.print();
+  };
+
+  const handleSavePdfDirect = async () => {
+    setIsExportingPdf(true);
+    setExportProgress("Initializing document layout...");
+    try {
+      await exportElementToPdf("formatted-printable-document", {
+        filename: `OmniRank_Executive_SEO_Report_${new Date().toISOString().slice(0, 10)}.pdf`,
+        onProgress: (status) => setExportProgress(status),
+      });
+    } finally {
+      setIsExportingPdf(false);
+      setExportProgress(null);
+    }
   };
 
   return (
@@ -41,18 +59,30 @@ export const PrintableReportModal: React.FC<PrintableReportModalProps> = ({
             <div>
               <h3 className="text-sm font-bold">Executive PDF Report & Print Snapshot</h3>
               <p className="text-[11px] text-green-100">
-                Formatted printable document containing the current snapshot of all dashboard metrics.
+                {exportProgress || "Formatted printable document containing the current snapshot of all dashboard metrics."}
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
             <button
-              onClick={handlePrint}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-md bg-[#ffa500] hover:brightness-110 text-slate-950 font-bold text-xs transition-all shadow"
+              onClick={handleSavePdfDirect}
+              disabled={isExportingPdf}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-md bg-[#ffa500] hover:brightness-110 disabled:opacity-50 text-slate-950 font-bold text-xs transition-all shadow"
             >
-              <Printer className="w-4 h-4 text-slate-950" />
-              <span>Print / Save as PDF</span>
+              {isExportingPdf ? (
+                <Loader2 className="w-4 h-4 animate-spin text-slate-950" />
+              ) : (
+                <Download className="w-4 h-4 text-slate-950" />
+              )}
+              <span>{isExportingPdf ? "Saving PDF..." : "Direct PDF Download"}</span>
+            </button>
+            <button
+              onClick={handlePrint}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-md bg-emerald-900/60 hover:bg-emerald-900 text-emerald-100 hover:text-white font-semibold text-xs transition-all border border-emerald-700/50"
+            >
+              <Printer className="w-3.5 h-3.5" />
+              <span>Print Dialog</span>
             </button>
             <button
               onClick={onClose}

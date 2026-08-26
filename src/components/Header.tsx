@@ -33,6 +33,9 @@ import {
   LogIn,
   KeyRound,
   Clock,
+  Database,
+  Cloud,
+  RefreshCw,
 } from "lucide-react";
 import {
   NavigationTab,
@@ -54,10 +57,14 @@ interface HeaderProps {
   contentPieces: ContentPieceItem[];
   transcripts: AudioTranscriptItem[];
   marketShiftAlerts?: MarketShiftAlert[];
+  searchQuery?: string;
+  onSearchQueryChange?: (query: string) => void;
   onOpenAddModal: () => void;
   onOpenMarketShiftsModal?: () => void;
   onDownloadPdf?: () => void;
   onTriggerTestAlert?: (title: string, message: string) => void;
+  onSyncFirestore?: () => void;
+  isCloudSyncing?: boolean;
 }
 
 const DEFAULT_PREFERENCES: AlgorithmNotificationPreferences = {
@@ -79,15 +86,28 @@ export const Header: React.FC<HeaderProps> = ({
   contentPieces,
   transcripts,
   marketShiftAlerts = [],
+  searchQuery: externalSearchQuery,
+  onSearchQueryChange,
   onOpenAddModal,
   onOpenMarketShiftsModal,
   onDownloadPdf,
   onTriggerTestAlert,
+  onSyncFirestore,
+  isCloudSyncing = false,
 }) => {
   const { theme, toggleTheme } = useTheme();
   const { currentUser, trialState, signOut } = useAuthBilling();
 
-  const [searchQuery, setSearchQuery] = useState("");
+  const [localSearchQuery, setLocalSearchQuery] = useState(externalSearchQuery || "");
+  const searchQuery = externalSearchQuery !== undefined ? externalSearchQuery : localSearchQuery;
+
+  const handleSearchChange = (val: string) => {
+    setLocalSearchQuery(val);
+    if (onSearchQueryChange) {
+      onSearchQueryChange(val);
+    }
+  };
+
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [selectedClient, setSelectedClient] = useState("Apex HealthTech & Enterprise SaaS");
   const [isClientMenuOpen, setIsClientMenuOpen] = useState(false);
@@ -190,7 +210,7 @@ export const Header: React.FC<HeaderProps> = ({
       className="h-16 bg-white dark:bg-[#0b170b] border-b border-gray-200 dark:border-[#163016] flex items-center justify-between px-6 lg:px-8 shrink-0 z-30 relative transition-colors"
     >
       {/* Global Search Bar */}
-      <div ref={searchRef} className="relative w-72 md:w-96 lg:w-[460px]">
+      <div ref={searchRef} className="relative w-72 md:w-96 lg:w-[480px]">
         <div className="relative flex items-center">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500 pointer-events-none" />
           <input
@@ -198,38 +218,57 @@ export const Header: React.FC<HeaderProps> = ({
             type="text"
             value={searchQuery}
             onChange={(e) => {
-              setSearchQuery(e.target.value);
+              handleSearchChange(e.target.value);
               setIsSearchOpen(true);
             }}
             onFocus={() => setIsSearchOpen(true)}
-            placeholder="Search campaigns, 35-matrix keywords, competitors..."
-            className="w-full bg-gray-100 dark:bg-[#060e06] border border-gray-300 dark:border-[#1e461e] rounded-full py-1.5 pl-10 pr-10 text-xs text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#ffa500] focus:border-transparent transition-all"
+            placeholder="Search Keyword Matrix, Competitors, Content inventory..."
+            className="w-full bg-gray-100 dark:bg-[#060e06] border border-gray-300 dark:border-[#1e461e] rounded-full py-1.5 pl-10 pr-20 text-xs text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#ffa500] focus:border-transparent transition-all shadow-inner"
           />
           {searchQuery && (
-            <button
-              onClick={() => {
-                setSearchQuery("");
-                setIsSearchOpen(false);
-              }}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] bg-gray-200 dark:bg-[#163016] text-gray-700 dark:text-gray-300 hover:text-gray-900 rounded px-1.5 py-0.5"
-            >
-              Clear
-            </button>
+            <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
+              <span className="hidden sm:inline-block text-[10px] font-mono bg-[#ffa500]/20 text-amber-700 dark:text-[#ffa500] px-1.5 py-0.5 rounded font-bold">
+                {totalResultsCount} matches
+              </span>
+              <button
+                id="global-system-search-clear-btn"
+                type="button"
+                onClick={() => {
+                  handleSearchChange("");
+                  setIsSearchOpen(false);
+                }}
+                className="text-[10px] bg-gray-200 dark:bg-[#163016] text-gray-700 dark:text-gray-300 hover:text-gray-900 rounded px-1.5 py-0.5 font-bold"
+              >
+                Clear
+              </button>
+            </div>
           )}
         </div>
 
-        {/* Global Search Results Dropdown */}
+        {/* Global Search Results Dropdown with multi-entity live sync */}
         {isSearchOpen && searchQuery.trim() && (
           <div
             id="search-results-dropdown"
             className="absolute left-0 right-0 top-full mt-2 bg-white dark:bg-[#0b170b] text-gray-900 dark:text-white rounded-xl shadow-2xl border border-gray-200 dark:border-[#163016] overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-150"
           >
             <div className="p-3 bg-gray-50 dark:bg-[#060e06] text-gray-700 dark:text-gray-300 flex items-center justify-between text-xs font-semibold border-b border-gray-200 dark:border-[#163016]">
-              <span className="flex items-center gap-1.5">
+              <div className="flex items-center gap-2">
                 <Sparkles className="w-3.5 h-3.5 text-[#ffa500]" />
-                Search Results ({totalResultsCount} found)
-              </span>
-              <span className="text-gray-400 text-[11px]">ESC to close</span>
+                <span>Simultaneous Multi-Entity Search ({totalResultsCount} results)</span>
+              </div>
+              <div className="flex items-center gap-2 text-[10px]">
+                <span className="text-emerald-600 dark:text-emerald-400 font-bold">
+                  {searchResults?.keywords.length || 0} KW
+                </span>
+                <span className="text-gray-400">•</span>
+                <span className="text-blue-600 dark:text-blue-400 font-bold">
+                  {searchResults?.competitors.length || 0} Comp
+                </span>
+                <span className="text-gray-400">•</span>
+                <span className="text-purple-600 dark:text-purple-400 font-bold">
+                  {searchResults?.content.length || 0} Content
+                </span>
+              </div>
             </div>
 
             <div className="max-h-96 overflow-y-auto p-3 space-y-3 text-xs">
@@ -409,6 +448,23 @@ export const Header: React.FC<HeaderProps> = ({
           >
             <Printer className="w-3.5 h-3.5 text-[#004d00] dark:text-[#ffa500]" />
             <span className="hidden sm:inline">REPORT</span>
+          </button>
+        )}
+
+        {/* FIREBASE FIRESTORE CLOUD STATUS & SYNC BUTTON */}
+        {onSyncFirestore && (
+          <button
+            id="header-firebase-sync-btn"
+            onClick={onSyncFirestore}
+            disabled={isCloudSyncing}
+            className="flex items-center gap-1.5 bg-emerald-50 dark:bg-[#091f09] hover:bg-emerald-100 dark:hover:bg-[#143314] border border-emerald-300 dark:border-[#1e461e] px-3 py-1.5 rounded-lg text-xs font-bold text-emerald-900 dark:text-[#ffa500] transition-colors shadow-xs"
+            title="Firebase Firestore Cloud Database Connected - Click to force re-sync workspace"
+          >
+            <Cloud className={`w-3.5 h-3.5 text-emerald-600 dark:text-[#ffa500] ${isCloudSyncing ? "animate-pulse" : ""}`} />
+            <span className="hidden xl:inline font-mono">
+              {isCloudSyncing ? "Syncing..." : "🔥 Firebase Live"}
+            </span>
+            <span className="xl:hidden font-mono">🔥 Cloud</span>
           </button>
         )}
 

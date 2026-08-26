@@ -18,15 +18,19 @@ import {
   ChevronRight,
   Radio,
   CreditCard,
+  Lock,
+  Printer,
 } from "lucide-react";
 import { NavigationTab } from "../types";
+import { useAuthBilling } from "../context/AuthBillingContext";
 
 interface SidebarProps {
   currentTab: NavigationTab;
   onNavigate: (tab: NavigationTab) => void;
   onOpenAddModal: () => void;
   onExportCsv: () => void;
-  onOpenPrintReport: () => void;
+  onOpenPrintReport?: () => void;
+  onDownloadPdf?: () => void;
   onRunAudit: () => void;
   onRunA2A: () => void;
   onStartAudioLive: () => void;
@@ -42,6 +46,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenAddModal,
   onExportCsv,
   onOpenPrintReport,
+  onDownloadPdf,
   onRunAudit,
   onRunA2A,
   onStartAudioLive,
@@ -50,27 +55,81 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isA2ARunning = false,
   isRecording = false,
 }) => {
-  const navItems: { id: NavigationTab; label: string; icon: React.FC<{ className?: string }>; badge?: string; shortcut: string }[] = [
+  const { isAccessRestricted, hasActivePaidPlan, trialState } = useAuthBilling();
+
+  const handleActionClick = (actionFn?: () => void) => {
+    if (!actionFn) return;
+    if (isAccessRestricted) {
+      onNavigate("subscription-billing");
+      return;
+    }
+    actionFn();
+  };
+
+  const handleDownloadPdf = () => {
+    const fn = onDownloadPdf || onOpenPrintReport;
+    if (fn) handleActionClick(fn);
+  };
+
+  const navItems: {
+    id: NavigationTab;
+    label: string;
+    icon: React.FC<{ className?: string }>;
+    badge?: string;
+    isLiveBadge?: boolean;
+    liveBadgeColor?: string;
+    shortcut: string;
+  }[] = [
     { id: "overview", label: "Dashboard", icon: LayoutDashboard, shortcut: "Alt+O" },
-    { id: "ai-search-eeat", label: "Site Audit & EEAT", icon: Sparkles, badge: "NLP / SGE", shortcut: "Alt+E" },
-    { id: "a2a-judge", label: "A2A & Judge Core", icon: Bot, badge: "Judge Core", shortcut: "Alt+J" },
+    {
+      id: "ai-search-eeat",
+      label: "Site Audit & EEAT",
+      icon: Sparkles,
+      badge: isAuditing ? "LIVE AUDIT" : "NLP / SGE",
+      isLiveBadge: isAuditing,
+      liveBadgeColor: "bg-emerald-500 text-slate-950",
+      shortcut: "Alt+E",
+    },
+    {
+      id: "a2a-judge",
+      label: "A2A & Judge Core",
+      icon: Bot,
+      badge: isA2ARunning ? "LIVE JUDGE" : "Judge Core",
+      isLiveBadge: isA2ARunning,
+      liveBadgeColor: "bg-amber-400 text-slate-950",
+      shortcut: "Alt+J",
+    },
     { id: "keywords", label: "Keyword Research (35)", icon: TrendingUp, badge: "35 Matrix", shortcut: "Alt+K" },
     { id: "initial-audit", label: "10 Competitor Analysis", icon: Layers, badge: "10 Comp", shortcut: "Alt+A" },
     { id: "onpage-tech", label: "On-Page & Tech Engine", icon: FileCode, shortcut: "Alt+T" },
     { id: "content-marketing", label: "Content Strategy & PR", icon: FileText, badge: "18 Assets", shortcut: "Alt+C" },
-    { id: "audio-transcriber", label: "Audio Transcription AI", icon: Mic, badge: "Live NLP", shortcut: "Alt+M" },
+    {
+      id: "audio-transcriber",
+      label: "Audio Transcription AI",
+      icon: Mic,
+      badge: isRecording ? "LIVE REC" : "Live NLP",
+      isLiveBadge: isRecording,
+      liveBadgeColor: "bg-red-500 text-white animate-pulse",
+      shortcut: "Alt+M",
+    },
     { id: "packages-roi", label: "SEO Packages & ROI", icon: PackageCheck, shortcut: "Alt+P" },
     { id: "algorithm-intel", label: "Algorithm Intel & Radar", icon: ShieldAlert, shortcut: "Alt+U" },
-    { id: "subscription-billing", label: "Subscription & Billing", icon: CreditCard, badge: "7-Day Trial", shortcut: "Alt+B" },
+    {
+      id: "subscription-billing",
+      label: "Subscription & Billing",
+      icon: CreditCard,
+      badge: isAccessRestricted ? "REQUIRED" : hasActivePaidPlan ? "ACTIVE" : `${trialState.daysRemaining}d Trial`,
+      shortcut: "Alt+B",
+    },
   ];
 
   return (
     <aside
       id="left-control-panel-sidebar"
-      className="w-64 lg:w-72 flex-shrink-0 bg-[#004d00] text-white border-r border-[#003300] flex flex-col h-screen overflow-y-auto select-none"
+      className="w-64 lg:w-72 flex-shrink-0 bg-[#004d00] text-white border-r border-[#003300] flex flex-col h-screen overflow-hidden select-none relative"
     >
       {/* Brand Header */}
-      <div className="p-5 border-b border-[#003300]">
+      <div className="p-5 border-b border-[#003300] shrink-0">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-lg bg-[#ffa500] flex items-center justify-center text-slate-950 font-black text-lg shadow-sm">
             AI
@@ -87,124 +146,220 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </div>
 
       {/* Action Buttons Panel */}
-      <div className="p-3 border-b border-[#003300] space-y-1.5 bg-[#004400]/40">
+      <div className="p-3 border-b border-[#003300] space-y-1.5 bg-[#004400]/40 shrink-0">
         <div className="text-[10px] font-bold uppercase tracking-wider text-green-300/90 px-1 mb-1 flex items-center justify-between">
           <span>Action Triggers</span>
           <span className="text-[9px] bg-[#003300] text-[#ffa500] px-1.5 py-0.2 rounded font-mono font-semibold">
-            Live
+            {isAccessRestricted ? "Locked" : "Live"}
           </span>
         </div>
 
         {/* Add New Record Button */}
         <button
           id="sidebar-add-record-btn"
-          onClick={onOpenAddModal}
-          className="w-full flex items-center justify-between px-3 py-2 rounded-md bg-[#ffa500] hover:brightness-110 text-slate-950 font-bold text-xs shadow-md transition-all active:scale-[0.99]"
+          onClick={() => handleActionClick(onOpenAddModal)}
+          className={`w-full flex items-center justify-between px-3 py-2 rounded-md font-bold text-xs shadow-md transition-all active:scale-[0.99] ${
+            isAccessRestricted
+              ? "bg-gray-700 text-gray-300 hover:bg-gray-600"
+              : "bg-[#ffa500] hover:brightness-110 text-slate-950"
+          }`}
         >
           <span className="flex items-center gap-2">
-            <PlusCircle className="w-4 h-4 text-slate-950" />
-            + ADD NEW DATA
+            {isAccessRestricted ? (
+              <Lock className="w-4 h-4 text-amber-400" />
+            ) : (
+              <PlusCircle className="w-4 h-4 text-slate-950" />
+            )}
+            {isAccessRestricted ? "DATA LOCKED (EXPIRED)" : "+ ADD NEW DATA"}
           </span>
-          <span className="text-[10px] bg-amber-600/30 px-1.5 py-0.5 rounded font-mono text-slate-900">
-            2026
+          <span className="text-[10px] bg-black/20 px-1.5 py-0.5 rounded font-mono">
+            {isAccessRestricted ? "Locked" : "2026"}
           </span>
         </button>
 
-        {/* Action Triggers Grid */}
+        {/* Action Triggers Grid with Visual Live Indicators */}
         <div className="grid grid-cols-2 gap-1.5 pt-1">
+          {/* AI Audit Button */}
           <button
             id="sidebar-run-audit-btn"
-            onClick={onRunAudit}
+            onClick={() => handleActionClick(onRunAudit)}
             disabled={isAuditing}
-            className={`flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-md text-[11px] font-semibold border transition-all ${
+            className={`relative flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-md text-[11px] font-semibold border transition-all ${
               isAuditing
-                ? "bg-[#003300] text-amber-300 border-[#ffa500] animate-pulse cursor-wait"
+                ? "bg-[#002b00] text-emerald-300 border-emerald-500 shadow-sm ring-1 ring-emerald-500/50"
+                : isAccessRestricted
+                ? "bg-[#002b00] text-gray-400 border-transparent opacity-75"
                 : "bg-[#003300]/80 hover:bg-[#003300] text-green-100 border-[#002800]"
             }`}
-            title="Execute live AI Search audit"
+            title={isAccessRestricted ? "Trial expired. Subscribe to audit" : "Execute live AI Search audit"}
           >
-            <Zap className={`w-3 h-3 text-[#ffa500] ${isAuditing ? "animate-spin" : ""}`} />
-            <span>{isAuditing ? "Auditing..." : "AI Audit"}</span>
+            {isAuditing ? (
+              <>
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+                </span>
+                <span className="font-bold text-emerald-300 animate-pulse">Auditing...</span>
+              </>
+            ) : isAccessRestricted ? (
+              <>
+                <Lock className="w-3 h-3 text-amber-400" />
+                <span>AI Audit</span>
+              </>
+            ) : (
+              <>
+                <Zap className="w-3 h-3 text-[#ffa500]" />
+                <span>AI Audit</span>
+              </>
+            )}
           </button>
 
+          {/* A2A Loop Button */}
           <button
             id="sidebar-launch-a2a-btn"
-            onClick={onRunA2A}
+            onClick={() => handleActionClick(onRunA2A)}
             disabled={isA2ARunning}
-            className={`flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-md text-[11px] font-semibold border transition-all ${
+            className={`relative flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-md text-[11px] font-semibold border transition-all ${
               isA2ARunning
-                ? "bg-[#003300] text-amber-300 border-[#ffa500] animate-pulse cursor-wait"
+                ? "bg-[#002b00] text-amber-300 border-[#ffa500] shadow-sm ring-1 ring-amber-500/50"
+                : isAccessRestricted
+                ? "bg-[#002b00] text-gray-400 border-transparent opacity-75"
                 : "bg-[#003300]/80 hover:bg-[#003300] text-green-100 border-[#002800]"
             }`}
-            title="Launch A2A Judge Evaluation Loop"
+            title={isAccessRestricted ? "Trial expired. Subscribe to judge" : "Launch A2A Judge Evaluation Loop"}
           >
-            <Bot className="w-3 h-3 text-[#ffa500]" />
-            <span>{isA2ARunning ? "Judging..." : "A2A Loop"}</span>
+            {isA2ARunning ? (
+              <>
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-[#ffa500]" />
+                </span>
+                <span className="font-bold text-amber-300 animate-pulse">Judging...</span>
+              </>
+            ) : isAccessRestricted ? (
+              <>
+                <Lock className="w-3 h-3 text-amber-400" />
+                <span>A2A Loop</span>
+              </>
+            ) : (
+              <>
+                <Bot className="w-3 h-3 text-[#ffa500]" />
+                <span>A2A Loop</span>
+              </>
+            )}
           </button>
 
+          {/* Live Audio Button */}
           <button
             id="sidebar-start-audio-btn"
-            onClick={onStartAudioLive}
-            className={`flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-md text-[11px] font-semibold border transition-all ${
+            onClick={() => handleActionClick(onStartAudioLive)}
+            className={`relative flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-md text-[11px] font-semibold border transition-all ${
               isRecording
-                ? "bg-red-950 text-red-300 border-red-500 animate-pulse"
+                ? "bg-red-950 text-red-200 border-red-500 shadow-md ring-1 ring-red-500/50"
+                : isAccessRestricted
+                ? "bg-[#002b00] text-gray-400 border-transparent opacity-75"
                 : "bg-[#003300]/80 hover:bg-[#003300] text-green-100 border-[#002800]"
             }`}
             title="Toggle live NLP audio recording stream"
           >
             {isRecording ? (
-              <Radio className="w-3 h-3 text-red-400 animate-spin" />
+              <>
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />
+                </span>
+                <span className="font-bold text-red-300 animate-pulse">Recording...</span>
+              </>
+            ) : isAccessRestricted ? (
+              <>
+                <Lock className="w-3 h-3 text-amber-400" />
+                <span>Live Audio</span>
+              </>
             ) : (
-              <Mic className="w-3 h-3 text-[#ffa500]" />
+              <>
+                <Mic className="w-3 h-3 text-[#ffa500]" />
+                <span>Live Audio</span>
+              </>
             )}
-            <span>{isRecording ? "Live Rec..." : "Live Audio"}</span>
           </button>
 
+          {/* Export CSV Button */}
           <button
             id="sidebar-export-csv-btn"
-            onClick={onExportCsv}
-            className="flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-md bg-[#003300]/80 hover:bg-[#003300] border border-[#002800] text-green-100 text-[11px] font-semibold transition-colors"
+            onClick={() => handleActionClick(onExportCsv)}
+            className={`flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-md border text-[11px] font-semibold transition-colors ${
+              isAccessRestricted
+                ? "bg-[#002b00] text-gray-400 border-transparent opacity-75"
+                : "bg-[#003300]/80 hover:bg-[#003300] border-[#002800] text-green-100"
+            }`}
             title="Export CSV data"
           >
-            <FileSpreadsheet className="w-3 h-3 text-[#ffa500]" />
+            {isAccessRestricted ? (
+              <Lock className="w-3 h-3 text-amber-400" />
+            ) : (
+              <FileSpreadsheet className="w-3 h-3 text-[#ffa500]" />
+            )}
             <span>Export CSV</span>
           </button>
         </div>
       </div>
 
       {/* Navigation Links */}
-      <nav className="flex-1 py-3 px-3 space-y-1 overflow-y-auto">
-        <div className="text-[10px] font-bold uppercase tracking-wider text-green-300/80 px-3 py-1 mb-0.5">
-          Navigation
+      <nav className="flex-1 py-3 px-3 space-y-1 overflow-y-auto min-h-0">
+        <div className="text-[10px] font-bold uppercase tracking-wider text-green-300/80 px-3 py-1 mb-0.5 flex items-center justify-between">
+          <span>Navigation</span>
+          {isAccessRestricted && (
+            <span className="text-[9px] text-amber-400 font-mono font-black flex items-center gap-1">
+              <Lock className="w-2.5 h-2.5" /> Plan Required
+            </span>
+          )}
         </div>
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = currentTab === item.id;
+          const isItemLocked = isAccessRestricted && item.id !== "subscription-billing";
+
           return (
             <button
               key={item.id}
               id={`sidebar-nav-${item.id}`}
-              onClick={() => onNavigate(item.id)}
+              onClick={() => {
+                if (isItemLocked) {
+                  onNavigate("subscription-billing");
+                } else {
+                  onNavigate(item.id);
+                }
+              }}
               className={`w-full text-left px-3.5 py-2.5 rounded-lg flex items-center justify-between transition-all text-xs font-medium group ${
                 isActive
                   ? "bg-[#003300] text-white font-semibold shadow-inner border-l-4 border-[#ffa500]"
+                  : isItemLocked
+                  ? "text-green-200/50 hover:bg-[#003300]/40 hover:text-white"
                   : "text-green-100 hover:bg-[#003300]/70 hover:text-white"
               }`}
             >
               <div className="flex items-center gap-2.5 truncate">
                 {isActive ? (
                   <div className="w-2 h-2 bg-[#ffa500] rounded-full flex-shrink-0" />
+                ) : isItemLocked ? (
+                  <Lock className="w-4 h-4 text-amber-400/80 flex-shrink-0" />
                 ) : (
                   <Icon className="w-4 h-4 text-green-300/70 flex-shrink-0" />
                 )}
-                <span className="truncate">{item.label}</span>
+                <span className={`truncate ${isItemLocked ? "opacity-75" : ""}`}>
+                  {item.label}
+                </span>
               </div>
               <div className="flex items-center gap-1.5 flex-shrink-0">
                 {item.badge && (
                   <span
                     className={`text-[9px] px-1.5 py-0.5 rounded font-mono font-semibold ${
-                      isActive
+                      item.isLiveBadge
+                        ? `${item.liveBadgeColor} font-black animate-pulse shadow-sm`
+                        : isActive
                         ? "bg-[#ffa500] text-slate-950 font-bold"
+                        : item.badge === "REQUIRED"
+                        ? "bg-amber-500 text-slate-950 font-black animate-pulse"
                         : "bg-[#003300] text-green-200"
                     }`}
                   >
@@ -220,8 +375,42 @@ export const Sidebar: React.FC<SidebarProps> = ({
         })}
       </nav>
 
+      {/* Floating Download PDF Report Action Button */}
+      <div className="px-3 py-2 bg-gradient-to-t from-[#003800] via-[#003800] to-transparent shrink-0">
+        <button
+          id="sidebar-floating-download-pdf-btn"
+          type="button"
+          onClick={handleDownloadPdf}
+          className="w-full group relative flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-gradient-to-r from-[#003300] via-[#004400] to-[#002b00] hover:from-[#004400] hover:to-[#003300] text-white border border-[#ffa500]/40 hover:border-[#ffa500] shadow-lg hover:shadow-xl transition-all duration-200 active:scale-[0.98] overflow-hidden"
+          title="Download printable executive SEO audit & campaign performance PDF"
+        >
+          {/* Subtle Ambient Glow */}
+          <div className="absolute -inset-0.5 bg-[#ffa500]/10 rounded-xl blur-xs group-hover:bg-[#ffa500]/20 transition-all pointer-events-none" />
+
+          <div className="relative flex items-center gap-2.5">
+            <div className="w-7 h-7 rounded-lg bg-[#ffa500] text-slate-950 flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform flex-shrink-0">
+              <Download className="w-4 h-4" />
+            </div>
+            <div className="text-left">
+              <div className="font-bold text-xs text-white group-hover:text-[#ffa500] transition-colors flex items-center gap-1.5">
+                <span>Download PDF Report</span>
+              </div>
+              <p className="text-[9px] text-green-200/80 font-medium">
+                Printable Metrics & Campaign ROI
+              </p>
+            </div>
+          </div>
+
+          <div className="relative flex items-center">
+            <span className="text-[9px] bg-[#ffa500]/20 text-[#ffa500] font-black uppercase px-1.5 py-0.5 rounded border border-[#ffa500]/30 font-mono">
+              PDF
+            </span>
+          </div>
+        </button>
+      </div>
+
       {/* Sidebar Footer */}
-      <div className="p-3.5 border-t border-[#003300] bg-[#003800] space-y-2">
+      <div className="p-3 border-t border-[#003300] bg-[#003800] space-y-1.5 shrink-0">
         <button
           id="sidebar-self-maintenance-btn"
           onClick={onSelfMaintenance}

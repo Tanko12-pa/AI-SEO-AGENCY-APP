@@ -9,11 +9,14 @@ import {
   Globe,
   Archive,
   ArchiveRestore,
+  Upload,
 } from "lucide-react";
 import { CompetitorItem } from "../../types";
+import { CsvImportModal } from "../CsvImportModal";
 
 interface InitialAuditViewProps {
   competitors: CompetitorItem[];
+  externalSearchQuery?: string;
   onAddCompetitor: (comp: CompetitorItem) => void;
   onDeleteCompetitor: (id: string) => void;
   onToggleArchiveCompetitor?: (id: string) => void;
@@ -22,20 +25,41 @@ interface InitialAuditViewProps {
 
 export const InitialAuditView: React.FC<InitialAuditViewProps> = ({
   competitors,
+  externalSearchQuery,
+  onAddCompetitor,
   onDeleteCompetitor,
   onToggleArchiveCompetitor,
   onOpenAddModal,
 }) => {
   const [activeAuditTab, setActiveAuditTab] = useState<"competitors" | "website" | "backlinks" | "analytics">("competitors");
   const [archiveFilter, setArchiveFilter] = useState<"active" | "archived" | "all">("active");
+  const [searchFilter, setSearchFilter] = useState("");
+  const [isCsvImportOpen, setIsCsvImportOpen] = useState(false);
+
+  const effectiveSearch = (searchFilter || externalSearchQuery || "").toLowerCase();
 
   const activeCount = competitors.filter((c) => !c.archived).length;
   const archivedCount = competitors.filter((c) => !!c.archived).length;
+
+  const handleBulkImportCompetitors = (newCompetitors: CompetitorItem[]) => {
+    newCompetitors.forEach((comp) => {
+      onAddCompetitor(comp);
+    });
+    setIsCsvImportOpen(false);
+  };
 
   const filteredCompetitors = competitors.filter((c) => {
     const isArchived = !!c.archived;
     if (archiveFilter === "active" && isArchived) return false;
     if (archiveFilter === "archived" && !isArchived) return false;
+    if (effectiveSearch) {
+      const matches =
+        c.name.toLowerCase().includes(effectiveSearch) ||
+        c.domain.toLowerCase().includes(effectiveSearch) ||
+        c.strengths.some((s) => s.toLowerCase().includes(effectiveSearch)) ||
+        c.weaknesses.some((w) => w.toLowerCase().includes(effectiveSearch));
+      if (!matches) return false;
+    }
     return true;
   });
 
@@ -152,6 +176,16 @@ export const InitialAuditView: React.FC<InitialAuditViewProps> = ({
                   All ({competitors.length})
                 </button>
               </div>
+
+              <button
+                id="initial-audit-import-csv-btn"
+                onClick={() => setIsCsvImportOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-md bg-[#004d00] hover:bg-[#003d00] text-white text-xs font-semibold transition-colors shadow-sm"
+                title="Bulk import competitor benchmarks from a CSV file"
+              >
+                <Upload className="w-3.5 h-3.5 text-[#ffa500]" />
+                <span>Import CSV</span>
+              </button>
 
               <button
                 onClick={onOpenAddModal}
@@ -348,6 +382,14 @@ export const InitialAuditView: React.FC<InitialAuditViewProps> = ({
           </div>
         </div>
       )}
+
+      {/* CSV Bulk Import Modal */}
+      <CsvImportModal
+        isOpen={isCsvImportOpen}
+        onClose={() => setIsCsvImportOpen(false)}
+        importType="competitors"
+        onImportCompetitors={handleBulkImportCompetitors}
+      />
     </div>
   );
 };

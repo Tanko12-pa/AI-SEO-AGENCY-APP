@@ -7,6 +7,18 @@ import {
   TrialState,
 } from "../types";
 import { fetchUserSubscriptionStatus } from "../services/api";
+import {
+  firebaseSignInWithGoogle,
+  firebaseSignInWithEmail,
+  firebaseSignUpWithEmail,
+  firebaseSendPasswordReset,
+  firebaseSignOutUser,
+  subscribeAuthState,
+  saveUserProfileToFirestore,
+  getUserProfileFromFirestore,
+  saveInvoiceToFirestore,
+  subscribeInvoices,
+} from "../services/firebaseService";
 
 const LOCAL_STORAGE_USERS_KEY = "ai_seo_agency_users_v2";
 const LOCAL_STORAGE_CURRENT_USER_KEY = "ai_seo_agency_current_user_v2";
@@ -49,10 +61,18 @@ interface AuthBillingContextType {
   currentUser: AuthAccount | null;
   isAuthenticated: boolean;
   trialState: TrialState;
+  hasActivePaidPlan: boolean;
+  isAccessRestricted: boolean;
+  isAdvanceWarning: boolean;
   invoices: InvoiceRecord[];
   allRegisteredUsers: AuthAccount[];
+  firebaseConnected: boolean;
   signUp: (name: string, email: string, password: string, company?: string) => { success: boolean; message: string };
   signIn: (email: string, password: string) => { success: boolean; message: string };
+  signInWithGoogleAuth: () => Promise<{ success: boolean; message: string }>;
+  signInWithFirebase: (email: string, pass: string) => Promise<{ success: boolean; message: string }>;
+  signUpWithFirebase: (name: string, email: string, pass: string, company?: string) => Promise<{ success: boolean; message: string }>;
+  sendFirebasePasswordReset: (email: string) => Promise<{ success: boolean; message: string }>;
   signOut: () => void;
   changePassword: (email: string, oldPassword: string, newPassword: string) => { success: boolean; message: string };
   resetPasswordDirect: (email: string, newPassword: string) => { success: boolean; message: string };
@@ -73,6 +93,9 @@ interface AuthBillingContextType {
   reactivateSubscription: (plan: "monthly" | "yearly") => { success: boolean; message: string };
   simulateTrialExpiration: () => void;
   resetTrial: (days?: number) => void;
+  simulateTrialState: (
+    state: "active_7days" | "warning_1day" | "expired_lockout" | "monthly_paid" | "yearly_paid"
+  ) => void;
 }
 
 const AuthBillingContext = createContext<AuthBillingContextType | undefined>(undefined);
@@ -117,7 +140,7 @@ export const AuthBillingProvider: React.FC<{ children: React.ReactNode }> = ({ c
     return INITIAL_INVOICES;
   });
 
-  // Sync users to local storage
+  // Sync users to local storage & Firestore
   useEffect(() => {
     try {
       localStorage.setItem(LOCAL_STORAGE_USERS_KEY, JSON.stringify(users));
@@ -126,11 +149,12 @@ export const AuthBillingProvider: React.FC<{ children: React.ReactNode }> = ({ c
     }
   }, [users]);
 
-  // Sync current user to local storage
+  // Sync current user to local storage & Firestore
   useEffect(() => {
     try {
       if (currentUser) {
         localStorage.setItem(LOCAL_STORAGE_CURRENT_USER_KEY, JSON.stringify(currentUser));
+        saveUserProfileToFirestore(currentUser);
       } else {
         localStorage.removeItem(LOCAL_STORAGE_CURRENT_USER_KEY);
       }
@@ -147,6 +171,40 @@ export const AuthBillingProvider: React.FC<{ children: React.ReactNode }> = ({ c
       console.warn("Failed to save invoices to storage", e);
     }
   }, [invoices]);
+
+  // Listen to Firebase Auth state
+  useEffect(() => {
+    const unsubscribe = subscribeAuthState(async (fbUser) => {
+      if (fbUser) {
+        // Fetch or create profile in Firestore
+        const profile = await getUserProfileFromFirestore(fbUser.uid);
+        if (profile) {
+          setCurrentUser(profile);
+        } else {
+          const now = new Date();
+          const trialEnd = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+          const newAccount: AuthAccount = {
+            id: fbUser.uid,
+            name: fbUser.displayName || fbUser.email?.split("@")[0] || "Agency Strategist",
+            email: fbUser.email || "user@agency.com",
+            role: "Lead SEO Architect",
+            company: "Digital Marketing Enterprise",
+            avatarInitials: (fbUser.displayName || fbUser.email || "AK").slice(0, 2).toUpperCase(),
+            createdAt: now.toISOString(),
+            trialStartDate: now.toISOString(),
+            trialEndDate: trialEnd.toISOString(),
+            subscriptionPlan: "free_trial",
+            subscriptionStatus: "trial_active",
+            autoRenew: true,
+          };
+          setCurrentUser(newAccount);
+          await saveUserProfileToFirestore(newAccount);
+        }
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   // Synchronize backend PayPal webhook status with client state
   const syncWithBackendWebhookState = useCallback(async () => {
@@ -188,20 +246,34 @@ export const AuthBillingProvider: React.FC<{ children: React.ReactNode }> = ({ c
         startDate: new Date().toISOString(),
         endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
         daysRemaining: 7,
+        hoursRemaining: 168,
         totalDays: 7,
         isExpired: false,
+        isAdvanceWarning: false,
+        hasActiveSubscription: false,
+        isAccessRestricted: false,
         percentageUsed: 0,
       };
     }
 
     // If subscribed to Monthly ($29.99) or Yearly ($299.99), trial is bypassed / upgraded
-    if (user.subscriptionPlan === "monthly" || user.subscriptionPlan === "yearly") {
+    const hasActiveSubscription =
+      user.subscriptionPlan === "monthly" ||
+      user.subscriptionPlan === "yearly" ||
+      user.subscriptionStatus === "active_monthly" ||
+      user.subscriptionStatus === "active_yearly";
+
+    if (hasActiveSubscription) {
       return {
         startDate: user.trialStartDate,
         endDate: user.trialEndDate,
         daysRemaining: 0,
+        hoursRemaining: 0,
         totalDays: 7,
         isExpired: false,
+        isAdvanceWarning: false,
+        hasActiveSubscription: true,
+        isAccessRestricted: false,
         percentageUsed: 100,
       };
     }
@@ -212,20 +284,33 @@ export const AuthBillingProvider: React.FC<{ children: React.ReactNode }> = ({ c
     const totalMs = 7 * 24 * 60 * 60 * 1000;
     const msRemaining = Math.max(0, end - now);
     const daysRemaining = Math.ceil(msRemaining / (24 * 60 * 60 * 1000));
+    const hoursRemaining = Math.max(0, Math.floor(msRemaining / (60 * 60 * 1000)));
     const isExpired = user.subscriptionStatus === "trial_expired" || now >= end;
+    const isAdvanceWarning = !isExpired && user.subscriptionPlan === "free_trial" && daysRemaining <= 2;
     const percentageUsed = Math.min(100, Math.max(0, Math.round(((totalMs - msRemaining) / totalMs) * 100)));
 
     return {
       startDate: user.trialStartDate,
       endDate: user.trialEndDate,
       daysRemaining: isExpired ? 0 : daysRemaining,
+      hoursRemaining: isExpired ? 0 : hoursRemaining,
       totalDays: 7,
       isExpired,
+      isAdvanceWarning,
+      hasActiveSubscription: false,
+      isAccessRestricted: isExpired,
       percentageUsed,
     };
   };
 
   const trialState = computeTrialState(currentUser);
+  const hasActivePaidPlan =
+    currentUser?.subscriptionPlan === "monthly" ||
+    currentUser?.subscriptionPlan === "yearly" ||
+    currentUser?.subscriptionStatus === "active_monthly" ||
+    currentUser?.subscriptionStatus === "active_yearly";
+  const isAccessRestricted = !hasActivePaidPlan && (trialState.isExpired || currentUser?.subscriptionStatus === "trial_expired");
+  const isAdvanceWarning = !isAccessRestricted && !hasActivePaidPlan && (trialState.isAdvanceWarning || trialState.daysRemaining <= 2);
 
   // Helper to extract initials
   const getInitials = (name: string): string => {
@@ -333,14 +418,114 @@ export const AuthBillingProvider: React.FC<{ children: React.ReactNode }> = ({ c
     }
 
     setCurrentUser(targetUser);
+    saveUserProfileToFirestore(targetUser);
     return {
       success: true,
       message: `Signed in successfully as ${targetUser.name}! Welcome back.`,
     };
   };
 
+  // 2.1 Firebase Google Sign-In
+  const signInWithGoogleAuth = async (): Promise<{ success: boolean; message: string }> => {
+    try {
+      const fbUser = await firebaseSignInWithGoogle();
+      const existing = await getUserProfileFromFirestore(fbUser.uid);
+      if (existing) {
+        setCurrentUser(existing);
+        return { success: true, message: `Welcome back, ${existing.name}! Signed in via Firebase Google Auth.` };
+      }
+
+      const now = new Date();
+      const trialEnd = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+      const newAcc: AuthAccount = {
+        id: fbUser.uid,
+        name: fbUser.displayName || fbUser.email?.split("@")[0] || "Agency Strategist",
+        email: fbUser.email || "akindewum@gmail.com",
+        role: "Lead AI SEO Architect & Director",
+        company: "Digital Marketing Enterprise",
+        avatarInitials: (fbUser.displayName || fbUser.email || "AK").slice(0, 2).toUpperCase(),
+        createdAt: now.toISOString(),
+        trialStartDate: now.toISOString(),
+        trialEndDate: trialEnd.toISOString(),
+        subscriptionPlan: "free_trial",
+        subscriptionStatus: "trial_active",
+        autoRenew: true,
+      };
+
+      setCurrentUser(newAcc);
+      await saveUserProfileToFirestore(newAcc);
+      return { success: true, message: `Welcome to AI SEO Agency, ${newAcc.name}! Your 7-Day Free Trial is live.` };
+    } catch (err: any) {
+      console.error("Firebase Google Sign-In error:", err);
+      return { success: false, message: err.message || "Failed to sign in with Google Auth." };
+    }
+  };
+
+  // 2.2 Firebase Email Sign-In
+  const signInWithFirebase = async (email: string, pass: string): Promise<{ success: boolean; message: string }> => {
+    try {
+      const fbUser = await firebaseSignInWithEmail(email, pass);
+      const profile = await getUserProfileFromFirestore(fbUser.uid);
+      if (profile) {
+        setCurrentUser(profile);
+        return { success: true, message: `Signed in as ${profile.name} via Firebase!` };
+      }
+      return { success: true, message: "Signed in successfully with Firebase Auth." };
+    } catch (err: any) {
+      return { success: false, message: err.message || "Firebase sign-in failed." };
+    }
+  };
+
+  // 2.3 Firebase Email Sign-Up
+  const signUpWithFirebase = async (
+    name: string,
+    email: string,
+    pass: string,
+    company: string = "Enterprise SEO Agency"
+  ): Promise<{ success: boolean; message: string }> => {
+    try {
+      const fbUser = await firebaseSignUpWithEmail(email, pass, name);
+      const now = new Date();
+      const trialEnd = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+      const newAcc: AuthAccount = {
+        id: fbUser.uid,
+        name: name.trim(),
+        email: email.trim().toLowerCase(),
+        role: "SEO Strategist & Account Owner",
+        company: company,
+        avatarInitials: getInitials(name),
+        createdAt: now.toISOString(),
+        trialStartDate: now.toISOString(),
+        trialEndDate: trialEnd.toISOString(),
+        subscriptionPlan: "free_trial",
+        subscriptionStatus: "trial_active",
+        autoRenew: true,
+      };
+      setCurrentUser(newAcc);
+      await saveUserProfileToFirestore(newAcc);
+      return { success: true, message: `Account created in Firebase! Welcome ${name}.` };
+    } catch (err: any) {
+      return { success: false, message: err.message || "Firebase sign-up failed." };
+    }
+  };
+
+  // 2.4 Firebase Password Reset
+  const sendFirebasePasswordReset = async (email: string): Promise<{ success: boolean; message: string }> => {
+    try {
+      await firebaseSendPasswordReset(email);
+      return { success: true, message: `Password reset email sent to ${email} via Firebase Auth.` };
+    } catch (err: any) {
+      return { success: false, message: err.message || "Failed to send reset email." };
+    }
+  };
+
   // 3. Sign Out Handler
   const signOut = () => {
+    try {
+      firebaseSignOutUser();
+    } catch (e) {
+      // Ignore
+    }
     setCurrentUser(null);
   };
 
@@ -623,16 +808,73 @@ export const AuthBillingProvider: React.FC<{ children: React.ReactNode }> = ({ c
     setCurrentUser(resetUser);
   };
 
+  // 11. Multi-scenario Trial State Simulator for immediate policy testing
+  const simulateTrialState = (
+    state: "active_7days" | "warning_1day" | "expired_lockout" | "monthly_paid" | "yearly_paid"
+  ) => {
+    if (!currentUser) return;
+    const now = new Date();
+
+    if (state === "active_7days") {
+      const future = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+      const updated: AuthAccount = {
+        ...currentUser,
+        subscriptionPlan: "free_trial",
+        subscriptionStatus: "trial_active",
+        trialStartDate: now.toISOString(),
+        trialEndDate: future.toISOString(),
+      };
+      setCurrentUser(updated);
+      saveUserProfileToFirestore(updated);
+    } else if (state === "warning_1day") {
+      const pastStart = new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000);
+      const future1Day = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+      const updated: AuthAccount = {
+        ...currentUser,
+        subscriptionPlan: "free_trial",
+        subscriptionStatus: "trial_active",
+        trialStartDate: pastStart.toISOString(),
+        trialEndDate: future1Day.toISOString(),
+      };
+      setCurrentUser(updated);
+      saveUserProfileToFirestore(updated);
+    } else if (state === "expired_lockout") {
+      const pastStart = new Date(now.getTime() - 8 * 24 * 60 * 60 * 1000);
+      const pastEnd = new Date(now.getTime() - 1 * 60 * 60 * 1000);
+      const updated: AuthAccount = {
+        ...currentUser,
+        subscriptionPlan: "free_trial",
+        subscriptionStatus: "trial_expired",
+        trialStartDate: pastStart.toISOString(),
+        trialEndDate: pastEnd.toISOString(),
+      };
+      setCurrentUser(updated);
+      saveUserProfileToFirestore(updated);
+    } else if (state === "monthly_paid") {
+      subscribe("monthly");
+    } else if (state === "yearly_paid") {
+      subscribe("yearly");
+    }
+  };
+
   return (
     <AuthBillingContext.Provider
       value={{
         currentUser,
         isAuthenticated: !!currentUser,
         trialState,
+        hasActivePaidPlan,
+        isAccessRestricted,
+        isAdvanceWarning,
         invoices,
         allRegisteredUsers: users,
+        firebaseConnected: true,
         signUp,
         signIn,
+        signInWithGoogleAuth,
+        signInWithFirebase,
+        signUpWithFirebase,
+        sendFirebasePasswordReset,
         signOut,
         changePassword,
         resetPasswordDirect,
@@ -642,6 +884,7 @@ export const AuthBillingProvider: React.FC<{ children: React.ReactNode }> = ({ c
         reactivateSubscription,
         simulateTrialExpiration,
         resetTrial,
+        simulateTrialState,
       }}
     >
       {children}
