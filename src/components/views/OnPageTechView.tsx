@@ -6,6 +6,7 @@ import {
   Copy,
   Check,
 } from "lucide-react";
+import { GoogleSearchBacklinkExplorer } from "../GoogleSearchBacklinkExplorer";
 
 export const OnPageTechView: React.FC = () => {
   const [schemaType, setSchemaType] = useState<"Organization" | "FAQPage" | "Article" | "LocalBusiness">("Organization");
@@ -285,6 +286,9 @@ export const OnPageTechView: React.FC = () => {
           {schemas[schemaType]}
         </pre>
       </div>
+
+      {/* Google Search API Automated Backlink & Domain Citation Check Module */}
+      <GoogleSearchBacklinkExplorer />
     </div>
   );
 };

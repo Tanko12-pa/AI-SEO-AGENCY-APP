@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import { NavigationTab } from "../types";
 import { useAuthBilling } from "../context/AuthBillingContext";
+import { useI18n } from "../context/I18nContext";
 
 interface SidebarProps {
   currentTab: NavigationTab;
@@ -64,6 +65,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isRecording = false,
 }) => {
   const { isAccessRestricted, hasActivePaidPlan, trialState } = useAuthBilling();
+  const { t } = useI18n();
 
   const handleActionClick = (actionFn?: () => void) => {
     if (!actionFn) return;
@@ -94,10 +96,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
     {
       title: "Core Platform",
       items: [
-        { id: "overview", label: "Dashboard", icon: LayoutDashboard, shortcut: "Alt+O" },
+        { id: "overview", label: t("nav.overview", "Dashboard"), icon: LayoutDashboard, shortcut: "Alt+O" },
         {
           id: "ai-search-eeat",
-          label: "Site Audit & EEAT",
+          label: t("nav.ai_audit", "Site Audit & EEAT"),
           icon: Sparkles,
           badge: isAuditing ? "LIVE AUDIT" : "NLP / SGE",
           isLiveBadge: isAuditing,
@@ -113,13 +115,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
           liveBadgeColor: "bg-amber-400 text-slate-950",
           shortcut: "Alt+J",
         },
-        { id: "keywords", label: "Keyword Research (35)", icon: TrendingUp, badge: "35 Matrix", shortcut: "Alt+K" },
+        { id: "keywords", label: t("nav.keywords", "Keyword Research (35)"), icon: TrendingUp, badge: "35 Matrix", shortcut: "Alt+K" },
         { id: "initial-audit", label: "10 Competitor Analysis", icon: Layers, badge: "10 Comp", shortcut: "Alt+A" },
-        { id: "onpage-tech", label: "On-Page & Tech Engine", icon: FileCode, shortcut: "Alt+T" },
-        { id: "content-marketing", label: "Content Strategy & PR", icon: FileText, badge: "18 Assets", shortcut: "Alt+C" },
+        { id: "onpage-tech", label: t("nav.onpage_tech", "On-Page & Tech Engine"), icon: FileCode, shortcut: "Alt+T" },
+        { id: "content-marketing", label: t("nav.content_engine", "Content Strategy & PR"), icon: FileText, badge: "18 Assets", shortcut: "Alt+C" },
         {
           id: "audio-transcriber",
-          label: "Audio Transcription AI",
+          label: t("nav.audio_transcripts", "Audio Transcription AI"),
           icon: Mic,
           badge: isRecording ? "LIVE REC" : "Live NLP",
           isLiveBadge: isRecording,
@@ -131,26 +133,26 @@ export const Sidebar: React.FC<SidebarProps> = ({
     {
       title: "Agency Engines & Services",
       items: [
-        { id: "services-catalog", label: "9-Pillar Service Catalog", icon: Compass, badge: "9 Pillars" },
-        { id: "website-discovery", label: "36-Signal Site Discovery", icon: Search, badge: "36 Signals" },
-        { id: "schema-generator", label: "16-Type JSON-LD Schema", icon: Code2, badge: "16 Types" },
-        { id: "internal-linking", label: "Internal Linking Graph", icon: Network, badge: "PageRank" },
-        { id: "migration-seo", label: "Migration & 301 Replatform", icon: ArrowRightLeft, badge: "301 Map" },
-        { id: "platform-guides", label: "CMS Platform Guides", icon: BookOpen, badge: "6 Platforms" },
-        { id: "integrations-center", label: "Tool Connectors (12)", icon: Zap, badge: "12 APIs" },
-        { id: "ai-consultant", label: "AI Consultant & Action", icon: Sparkles, badge: "Priority" },
-        { id: "project-management", label: "Project Management", icon: FolderKanban, badge: "Workflow" },
-        { id: "white-label", label: "White-Label & Reports", icon: Building2, badge: "Branded" },
+        { id: "services-catalog", label: t("nav.services_catalog", "9-Pillar Service Catalog"), icon: Compass, badge: "9 Pillars" },
+        { id: "website-discovery", label: t("nav.website_discovery", "36-Signal Site Discovery"), icon: Search, badge: "36 Signals" },
+        { id: "schema-generator", label: t("nav.schema_generator", "16-Type JSON-LD Schema"), icon: Code2, badge: "16 Types" },
+        { id: "internal-linking", label: t("nav.internal_linking", "Internal Linking Graph"), icon: Network, badge: "PageRank" },
+        { id: "migration-seo", label: t("nav.migration_seo", "Migration & 301 Replatform"), icon: ArrowRightLeft, badge: "301 Map" },
+        { id: "platform-guides", label: t("nav.platform_guides", "CMS Platform Guides"), icon: BookOpen, badge: "6 Platforms" },
+        { id: "integrations-center", label: t("nav.integrations", "Tool Connectors (12)"), icon: Zap, badge: "12 APIs" },
+        { id: "ai-consultant", label: t("nav.ai_consultant", "AI Consultant & Action"), icon: Sparkles, badge: "Priority" },
+        { id: "project-management", label: t("nav.project_mgmt", "Project Management"), icon: FolderKanban, badge: "Workflow" },
+        { id: "white-label", label: t("nav.white_label", "White-Label & Reports"), icon: Building2, badge: "Branded" },
       ],
     },
     {
       title: "Commercial & Admin",
       items: [
-        { id: "packages-roi", label: "SEO Packages & ROI", icon: PackageCheck, shortcut: "Alt+P" },
+        { id: "packages-roi", label: t("nav.packages_roi", "SEO Packages & ROI"), icon: PackageCheck, shortcut: "Alt+P" },
         { id: "algorithm-intel", label: "Algorithm Intel & Radar", icon: ShieldAlert, shortcut: "Alt+U" },
         {
           id: "subscription-billing",
-          label: "Subscription & Billing",
+          label: t("nav.subscription_billing", "Subscription & Billing"),
           icon: CreditCard,
           badge: isAccessRestricted ? "REQUIRED" : hasActivePaidPlan ? "ACTIVE" : `${trialState.daysRemaining}d Trial`,
           shortcut: "Alt+B",

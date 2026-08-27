@@ -26,6 +26,7 @@ import { GrowthHeatmap } from "../GrowthHeatmap";
 import { SEOTrendRadar } from "../SEOTrendRadar";
 import { KeywordVolumeHeatmap } from "../KeywordVolumeHeatmap";
 import { CampaignImpactTrendChart } from "../CampaignImpactTrendChart";
+import { PredictiveImpactForecast } from "../PredictiveImpactForecast";
 import { KeywordItem, CompetitorItem, CampaignLogItem, NavigationTab } from "../../types";
 import { exportElementToPdf } from "../../services/pdfExportService";
 import {
@@ -499,6 +500,12 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
       <CampaignImpactTrendChart
         campaignLogs={campaignLogs}
         onOpenAddModal={onOpenAddModal}
+      />
+
+      {/* Predictive AI Forecasting Model (30-Day Regression Analysis) */}
+      <PredictiveImpactForecast
+        campaignLogs={campaignLogs}
+        currentOverallScore={91}
       />
 
       {/* Campaign Event Logs & Activity Ledger */}

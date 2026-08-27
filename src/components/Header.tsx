@@ -36,6 +36,7 @@ import {
   Database,
   Cloud,
   RefreshCw,
+  Globe,
 } from "lucide-react";
 import {
   NavigationTab,
@@ -48,6 +49,7 @@ import {
 } from "../types";
 import { useTheme } from "../context/ThemeContext";
 import { useAuthBilling } from "../context/AuthBillingContext";
+import { useI18n, Language } from "../context/I18nContext";
 
 interface HeaderProps {
   currentTab: NavigationTab;
@@ -112,6 +114,9 @@ export const Header: React.FC<HeaderProps> = ({
   const [selectedClient, setSelectedClient] = useState("Apex HealthTech & Enterprise SaaS");
   const [isClientMenuOpen, setIsClientMenuOpen] = useState(false);
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+  const [isLangMenuOpen, setIsLangMenuOpen] = useState(false);
+
+  const { language, setLanguage, t } = useI18n();
 
   // Notification Preferences State (with localStorage persistence)
   const [notifPrefs, setNotifPrefs] = useState<AlgorithmNotificationPreferences>(() => {
@@ -128,6 +133,7 @@ export const Header: React.FC<HeaderProps> = ({
   const searchRef = useRef<HTMLDivElement>(null);
   const profileRef = useRef<HTMLDivElement>(null);
   const clientRef = useRef<HTMLDivElement>(null);
+  const langRef = useRef<HTMLDivElement>(null);
 
   // Save prefs when changed
   const handleTogglePref = (key: keyof AlgorithmNotificationPreferences) => {
@@ -153,38 +159,38 @@ export const Header: React.FC<HeaderProps> = ({
   // Filter items across all system entities
   const searchResults = searchQuery.trim()
     ? {
-        keywords: keywords
-          .filter((k) => k.keyword.toLowerCase().includes(searchQuery.toLowerCase()))
+        keywords: (keywords || [])
+          .filter((k) => k?.keyword?.toLowerCase().includes(searchQuery.toLowerCase()))
           .slice(0, 4),
-        competitors: competitors
+        competitors: (competitors || [])
           .filter(
             (c) =>
-              c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-              c.domain.toLowerCase().includes(searchQuery.toLowerCase())
+              c?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+              c?.domain?.toLowerCase().includes(searchQuery.toLowerCase())
           )
           .slice(0, 3),
-        content: contentPieces
+        content: (contentPieces || [])
           .filter(
             (c) =>
-              c.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-              c.targetKeyword.toLowerCase().includes(searchQuery.toLowerCase())
+              c?.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+              c?.targetKeyword?.toLowerCase().includes(searchQuery.toLowerCase())
           )
           .slice(0, 3),
-        transcripts: transcripts
+        transcripts: (transcripts || [])
           .filter(
             (t) =>
-              t.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-              t.fullTranscript.toLowerCase().includes(searchQuery.toLowerCase())
+              t?.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+              t?.fullTranscript?.toLowerCase().includes(searchQuery.toLowerCase())
           )
           .slice(0, 2),
       }
     : null;
 
   const totalResultsCount = searchResults
-    ? searchResults.keywords.length +
-      searchResults.competitors.length +
-      searchResults.content.length +
-      searchResults.transcripts.length
+    ? (searchResults.keywords?.length || 0) +
+      (searchResults.competitors?.length || 0) +
+      (searchResults.content?.length || 0) +
+      (searchResults.transcripts?.length || 0)
     : 0;
 
   // Close dropdowns on outside click
@@ -198,6 +204,9 @@ export const Header: React.FC<HeaderProps> = ({
       }
       if (clientRef.current && !clientRef.current.contains(e.target as Node)) {
         setIsClientMenuOpen(false);
+      }
+      if (langRef.current && !langRef.current.contains(e.target as Node)) {
+        setIsLangMenuOpen(false);
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
@@ -375,8 +384,85 @@ export const Header: React.FC<HeaderProps> = ({
         )}
       </div>
 
-      {/* Right Controls: Theme Toggle, Client Switcher, PDF Report, User Profile Dropdown */}
+      {/* Right Controls: Theme Toggle, Language Switcher, Client Switcher, PDF Report, User Profile Dropdown */}
       <div className="flex items-center gap-2.5">
+        {/* LANGUAGE SWITCHER (EN, ES, FR) */}
+        <div ref={langRef} className="relative">
+          <button
+            id="global-language-switcher-btn"
+            onClick={() => setIsLangMenuOpen(!isLangMenuOpen)}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-gray-100 dark:bg-[#060e06] hover:bg-gray-200 dark:hover:bg-[#122412] border border-gray-200 dark:border-[#163016] text-gray-700 dark:text-gray-300 transition-all shadow-xs text-xs font-bold"
+            title={t("tooltip.lang_toggle", "Change interface language")}
+          >
+            <Globe className="w-3.5 h-3.5 text-[#004d00] dark:text-[#ffa500]" />
+            <span className="uppercase font-mono text-[11px] font-black">
+              {language === "en" ? "EN" : language === "es" ? "ES" : "FR"}
+            </span>
+            <ChevronDown className="w-3 h-3 text-gray-400" />
+          </button>
+
+          {isLangMenuOpen && (
+            <div className="absolute right-0 mt-1.5 w-44 bg-white dark:bg-[#0b170b] border border-gray-200 dark:border-[#163016] rounded-xl shadow-xl py-1 z-50 text-xs animate-in fade-in zoom-in-95 duration-150">
+              <div className="px-3 py-1.5 text-[10px] uppercase font-bold text-gray-400 tracking-wider border-b border-gray-100 dark:border-[#163016]">
+                {t("header.language", "Language")}
+              </div>
+              <button
+                onClick={() => {
+                  setLanguage("en");
+                  setIsLangMenuOpen(false);
+                }}
+                className={`w-full text-left px-3 py-2 hover:bg-gray-50 dark:hover:bg-[#122412] flex items-center justify-between transition-colors ${
+                  language === "en"
+                    ? "font-bold text-[#004d00] dark:text-[#ffa500] bg-green-50/50 dark:bg-[#081f08]"
+                    : "text-gray-700 dark:text-gray-300"
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-sm">🇺🇸</span>
+                  <span>English (US)</span>
+                </div>
+                {language === "en" && <CheckCircle2 className="w-3.5 h-3.5 text-[#004d00] dark:text-[#ffa500]" />}
+              </button>
+
+              <button
+                onClick={() => {
+                  setLanguage("es");
+                  setIsLangMenuOpen(false);
+                }}
+                className={`w-full text-left px-3 py-2 hover:bg-gray-50 dark:hover:bg-[#122412] flex items-center justify-between transition-colors ${
+                  language === "es"
+                    ? "font-bold text-[#004d00] dark:text-[#ffa500] bg-green-50/50 dark:bg-[#081f08]"
+                    : "text-gray-700 dark:text-gray-300"
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-sm">🇪🇸</span>
+                  <span>Español (ES)</span>
+                </div>
+                {language === "es" && <CheckCircle2 className="w-3.5 h-3.5 text-[#004d00] dark:text-[#ffa500]" />}
+              </button>
+
+              <button
+                onClick={() => {
+                  setLanguage("fr");
+                  setIsLangMenuOpen(false);
+                }}
+                className={`w-full text-left px-3 py-2 hover:bg-gray-50 dark:hover:bg-[#122412] flex items-center justify-between transition-colors ${
+                  language === "fr"
+                    ? "font-bold text-[#004d00] dark:text-[#ffa500] bg-green-50/50 dark:bg-[#081f08]"
+                    : "text-gray-700 dark:text-gray-300"
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-sm">🇫🇷</span>
+                  <span>Français (FR)</span>
+                </div>
+                {language === "fr" && <CheckCircle2 className="w-3.5 h-3.5 text-[#004d00] dark:text-[#ffa500]" />}
+              </button>
+            </div>
+          )}
+        </div>
+
         {/* THEME TOGGLE BUTTON (Light vs Deep Dark Mode) */}
         <button
           id="theme-mode-toggle-btn"

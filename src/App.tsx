@@ -7,6 +7,7 @@ import { PrintableReportModal } from "./components/PrintableReportModal";
 import { MarketShiftNotificationSystem } from "./components/MarketShiftNotificationSystem";
 import { ThemeProvider, useTheme } from "./context/ThemeContext";
 import { AuthBillingProvider, useAuthBilling } from "./context/AuthBillingContext";
+import { I18nProvider } from "./context/I18nContext";
 import { detectMarketShifts } from "./services/marketShiftService";
 import {
   subscribeKeywords,
@@ -969,9 +970,11 @@ function AppContent() {
 export function App() {
   return (
     <ThemeProvider>
-      <AuthBillingProvider>
-        <AppContent />
-      </AuthBillingProvider>
+      <I18nProvider>
+        <AuthBillingProvider>
+          <AppContent />
+        </AuthBillingProvider>
+      </I18nProvider>
     </ThemeProvider>
   );
 }
