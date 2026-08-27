@@ -20,6 +20,14 @@ import {
   CreditCard,
   Lock,
   Printer,
+  Compass,
+  Search,
+  Code2,
+  Network,
+  ArrowRightLeft,
+  BookOpen,
+  FolderKanban,
+  Building2,
 } from "lucide-react";
 import { NavigationTab } from "../types";
 import { useAuthBilling } from "../context/AuthBillingContext";
@@ -71,55 +79,83 @@ export const Sidebar: React.FC<SidebarProps> = ({
     if (fn) handleActionClick(fn);
   };
 
-  const navItems: {
+  interface NavItem {
     id: NavigationTab;
     label: string;
     icon: React.FC<{ className?: string }>;
     badge?: string;
     isLiveBadge?: boolean;
     liveBadgeColor?: string;
-    shortcut: string;
-  }[] = [
-    { id: "overview", label: "Dashboard", icon: LayoutDashboard, shortcut: "Alt+O" },
+    shortcut?: string;
+    section?: string;
+  }
+
+  const navSections: { title: string; items: NavItem[] }[] = [
     {
-      id: "ai-search-eeat",
-      label: "Site Audit & EEAT",
-      icon: Sparkles,
-      badge: isAuditing ? "LIVE AUDIT" : "NLP / SGE",
-      isLiveBadge: isAuditing,
-      liveBadgeColor: "bg-emerald-500 text-slate-950",
-      shortcut: "Alt+E",
+      title: "Core Platform",
+      items: [
+        { id: "overview", label: "Dashboard", icon: LayoutDashboard, shortcut: "Alt+O" },
+        {
+          id: "ai-search-eeat",
+          label: "Site Audit & EEAT",
+          icon: Sparkles,
+          badge: isAuditing ? "LIVE AUDIT" : "NLP / SGE",
+          isLiveBadge: isAuditing,
+          liveBadgeColor: "bg-emerald-500 text-slate-950",
+          shortcut: "Alt+E",
+        },
+        {
+          id: "a2a-judge",
+          label: "A2A & Judge Core",
+          icon: Bot,
+          badge: isA2ARunning ? "LIVE JUDGE" : "Judge Core",
+          isLiveBadge: isA2ARunning,
+          liveBadgeColor: "bg-amber-400 text-slate-950",
+          shortcut: "Alt+J",
+        },
+        { id: "keywords", label: "Keyword Research (35)", icon: TrendingUp, badge: "35 Matrix", shortcut: "Alt+K" },
+        { id: "initial-audit", label: "10 Competitor Analysis", icon: Layers, badge: "10 Comp", shortcut: "Alt+A" },
+        { id: "onpage-tech", label: "On-Page & Tech Engine", icon: FileCode, shortcut: "Alt+T" },
+        { id: "content-marketing", label: "Content Strategy & PR", icon: FileText, badge: "18 Assets", shortcut: "Alt+C" },
+        {
+          id: "audio-transcriber",
+          label: "Audio Transcription AI",
+          icon: Mic,
+          badge: isRecording ? "LIVE REC" : "Live NLP",
+          isLiveBadge: isRecording,
+          liveBadgeColor: "bg-red-500 text-white animate-pulse",
+          shortcut: "Alt+M",
+        },
+      ],
     },
     {
-      id: "a2a-judge",
-      label: "A2A & Judge Core",
-      icon: Bot,
-      badge: isA2ARunning ? "LIVE JUDGE" : "Judge Core",
-      isLiveBadge: isA2ARunning,
-      liveBadgeColor: "bg-amber-400 text-slate-950",
-      shortcut: "Alt+J",
+      title: "Agency Engines & Services",
+      items: [
+        { id: "services-catalog", label: "9-Pillar Service Catalog", icon: Compass, badge: "9 Pillars" },
+        { id: "website-discovery", label: "36-Signal Site Discovery", icon: Search, badge: "36 Signals" },
+        { id: "schema-generator", label: "16-Type JSON-LD Schema", icon: Code2, badge: "16 Types" },
+        { id: "internal-linking", label: "Internal Linking Graph", icon: Network, badge: "PageRank" },
+        { id: "migration-seo", label: "Migration & 301 Replatform", icon: ArrowRightLeft, badge: "301 Map" },
+        { id: "platform-guides", label: "CMS Platform Guides", icon: BookOpen, badge: "6 Platforms" },
+        { id: "integrations-center", label: "Tool Connectors (12)", icon: Zap, badge: "12 APIs" },
+        { id: "ai-consultant", label: "AI Consultant & Action", icon: Sparkles, badge: "Priority" },
+        { id: "project-management", label: "Project Management", icon: FolderKanban, badge: "Workflow" },
+        { id: "white-label", label: "White-Label & Reports", icon: Building2, badge: "Branded" },
+      ],
     },
-    { id: "keywords", label: "Keyword Research (35)", icon: TrendingUp, badge: "35 Matrix", shortcut: "Alt+K" },
-    { id: "initial-audit", label: "10 Competitor Analysis", icon: Layers, badge: "10 Comp", shortcut: "Alt+A" },
-    { id: "onpage-tech", label: "On-Page & Tech Engine", icon: FileCode, shortcut: "Alt+T" },
-    { id: "content-marketing", label: "Content Strategy & PR", icon: FileText, badge: "18 Assets", shortcut: "Alt+C" },
     {
-      id: "audio-transcriber",
-      label: "Audio Transcription AI",
-      icon: Mic,
-      badge: isRecording ? "LIVE REC" : "Live NLP",
-      isLiveBadge: isRecording,
-      liveBadgeColor: "bg-red-500 text-white animate-pulse",
-      shortcut: "Alt+M",
-    },
-    { id: "packages-roi", label: "SEO Packages & ROI", icon: PackageCheck, shortcut: "Alt+P" },
-    { id: "algorithm-intel", label: "Algorithm Intel & Radar", icon: ShieldAlert, shortcut: "Alt+U" },
-    {
-      id: "subscription-billing",
-      label: "Subscription & Billing",
-      icon: CreditCard,
-      badge: isAccessRestricted ? "REQUIRED" : hasActivePaidPlan ? "ACTIVE" : `${trialState.daysRemaining}d Trial`,
-      shortcut: "Alt+B",
+      title: "Commercial & Admin",
+      items: [
+        { id: "packages-roi", label: "SEO Packages & ROI", icon: PackageCheck, shortcut: "Alt+P" },
+        { id: "algorithm-intel", label: "Algorithm Intel & Radar", icon: ShieldAlert, shortcut: "Alt+U" },
+        {
+          id: "subscription-billing",
+          label: "Subscription & Billing",
+          icon: CreditCard,
+          badge: isAccessRestricted ? "REQUIRED" : hasActivePaidPlan ? "ACTIVE" : `${trialState.daysRemaining}d Trial`,
+          shortcut: "Alt+B",
+        },
+      ],
     },
   ];
 
@@ -305,74 +341,81 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </div>
 
       {/* Navigation Links */}
-      <nav className="flex-1 py-3 px-3 space-y-1 overflow-y-auto min-h-0">
-        <div className="text-[10px] font-bold uppercase tracking-wider text-green-300/80 px-3 py-1 mb-0.5 flex items-center justify-between">
-          <span>Navigation</span>
-          {isAccessRestricted && (
-            <span className="text-[9px] text-amber-400 font-mono font-black flex items-center gap-1">
-              <Lock className="w-2.5 h-2.5" /> Plan Required
-            </span>
-          )}
-        </div>
-        {navItems.map((item) => {
-          const Icon = item.icon;
-          const isActive = currentTab === item.id;
-          const isItemLocked = isAccessRestricted && item.id !== "subscription-billing";
+      <nav className="flex-1 py-3 px-3 space-y-3 overflow-y-auto min-h-0">
+        {navSections.map((section, sIdx) => (
+          <div key={sIdx} className="space-y-1">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-green-300/80 px-2 py-0.5 flex items-center justify-between">
+              <span>{section.title}</span>
+              {sIdx === 0 && isAccessRestricted && (
+                <span className="text-[9px] text-amber-400 font-mono font-black flex items-center gap-1">
+                  <Lock className="w-2.5 h-2.5" /> Plan Required
+                </span>
+              )}
+            </div>
 
-          return (
-            <button
-              key={item.id}
-              id={`sidebar-nav-${item.id}`}
-              onClick={() => {
-                if (isItemLocked) {
-                  onNavigate("subscription-billing");
-                } else {
-                  onNavigate(item.id);
-                }
-              }}
-              className={`w-full text-left px-3.5 py-2.5 rounded-lg flex items-center justify-between transition-all text-xs font-medium group ${
-                isActive
-                  ? "bg-[#003300] text-white font-semibold shadow-inner border-l-4 border-[#ffa500]"
-                  : isItemLocked
-                  ? "text-green-200/50 hover:bg-[#003300]/40 hover:text-white"
-                  : "text-green-100 hover:bg-[#003300]/70 hover:text-white"
-              }`}
-            >
-              <div className="flex items-center gap-2.5 truncate">
-                {isActive ? (
-                  <div className="w-2 h-2 bg-[#ffa500] rounded-full flex-shrink-0" />
-                ) : isItemLocked ? (
-                  <Lock className="w-4 h-4 text-amber-400/80 flex-shrink-0" />
-                ) : (
-                  <Icon className="w-4 h-4 text-green-300/70 flex-shrink-0" />
-                )}
-                <span className={`truncate ${isItemLocked ? "opacity-75" : ""}`}>
-                  {item.label}
-                </span>
-              </div>
-              <div className="flex items-center gap-1.5 flex-shrink-0">
-                {item.badge && (
-                  <span
-                    className={`text-[9px] px-1.5 py-0.5 rounded font-mono font-semibold ${
-                      item.isLiveBadge
-                        ? `${item.liveBadgeColor} font-black animate-pulse shadow-sm`
-                        : isActive
-                        ? "bg-[#ffa500] text-slate-950 font-bold"
-                        : item.badge === "REQUIRED"
-                        ? "bg-amber-500 text-slate-950 font-black animate-pulse"
-                        : "bg-[#003300] text-green-200"
-                    }`}
-                  >
-                    {item.badge}
-                  </span>
-                )}
-                <span className="text-[9px] px-1 py-0.5 rounded font-mono text-green-300/60 group-hover:text-[#ffa500] group-hover:bg-[#002600] transition-colors">
-                  {item.shortcut}
-                </span>
-              </div>
-            </button>
-          );
-        })}
+            {section.items.map((item) => {
+              const Icon = item.icon;
+              const isActive = currentTab === item.id;
+              const isItemLocked = isAccessRestricted && item.id !== "subscription-billing";
+
+              return (
+                <button
+                  key={item.id}
+                  id={`sidebar-nav-${item.id}`}
+                  onClick={() => {
+                    if (isItemLocked) {
+                      onNavigate("subscription-billing");
+                    } else {
+                      onNavigate(item.id);
+                    }
+                  }}
+                  className={`w-full text-left px-3 py-2 rounded-lg flex items-center justify-between transition-all text-xs font-medium group ${
+                    isActive
+                      ? "bg-[#003300] text-white font-semibold shadow-inner border-l-4 border-[#ffa500]"
+                      : isItemLocked
+                      ? "text-green-200/50 hover:bg-[#003300]/40 hover:text-white"
+                      : "text-green-100 hover:bg-[#003300]/70 hover:text-white"
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5 truncate">
+                    {isActive ? (
+                      <div className="w-2 h-2 bg-[#ffa500] rounded-full flex-shrink-0" />
+                    ) : isItemLocked ? (
+                      <Lock className="w-3.5 h-3.5 text-amber-400/80 flex-shrink-0" />
+                    ) : (
+                      <Icon className="w-3.5 h-3.5 text-green-300/70 flex-shrink-0" />
+                    )}
+                    <span className={`truncate ${isItemLocked ? "opacity-75" : ""}`}>
+                      {item.label}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    {item.badge && (
+                      <span
+                        className={`text-[9px] px-1.5 py-0.5 rounded font-mono font-semibold ${
+                          item.isLiveBadge
+                            ? `${item.liveBadgeColor} font-black animate-pulse shadow-sm`
+                            : isActive
+                            ? "bg-[#ffa500] text-slate-950 font-bold"
+                            : item.badge === "REQUIRED"
+                            ? "bg-amber-500 text-slate-950 font-black animate-pulse"
+                            : "bg-[#003300] text-green-200"
+                        }`}
+                      >
+                        {item.badge}
+                      </span>
+                    )}
+                    {item.shortcut && (
+                      <span className="text-[9px] px-1 py-0.5 rounded font-mono text-green-300/60 group-hover:text-[#ffa500] group-hover:bg-[#002600] transition-colors">
+                        {item.shortcut}
+                      </span>
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        ))}
       </nav>
 
       {/* Floating Download PDF Report Action Button */}

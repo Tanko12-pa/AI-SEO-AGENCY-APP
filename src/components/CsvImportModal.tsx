@@ -29,11 +29,11 @@ Autonomous Content Production Engine,Content Automation,Transactional,5600,62,6.
 Real-Time SERP Volatility Monitoring,Algorithmic Visibility,Commercial,4200,48,2.90,4,80%
 Voice Search NLP Indexing 2026,Search Intent Optimization,Informational,7100,59,3.75,1,85%`;
 
-const SAMPLE_COMPETITOR_CSV = `Name,Domain,Domain Authority,Organic Keywords,Monthly Traffic,Strengths,Weaknesses,AI Overview Share
-OmniRank Digital,omnirank-digital.com,76,28400,145000,"Deep AI Architecture; High DA","Slow Indexing Cycle",65%
-SearchVelocity Labs,searchvelocity.io,68,19200,92000,"Strong Technical Auditing","Weak Semantic Footprint",48%
-ApexGrowth Solutions,apexgrowth.co,72,24100,118000,"Fast Content Publishing","High SERP Churn Rate",58%
-SynapseRank Media,synapserank.com,64,15800,74000,"High Backlink Equity","Limited Voice Optimization",42%`;
+const SAMPLE_COMPETITOR_CSV = `Name,Domain,Domain Authority,Organic Keywords,Estimated Traffic,AI Overview %,Backlinks
+OmniRank Digital,omnirank-digital.com,76,28400,145k/mo,65%,12400
+SearchVelocity Labs,searchvelocity.io,68,19200,92k/mo,48%,8900
+ApexGrowth Solutions,apexgrowth.co,72,24100,118k/mo,58%,10200
+SynapseRank Media,synapserank.com,64,15800,74k/mo,42%,6500`;
 
 export const CsvImportModal: React.FC<CsvImportModalProps> = ({
   isOpen,
@@ -180,26 +180,20 @@ export const CsvImportModal: React.FC<CsvImportModalProps> = ({
           const rawKwCount = rowObj["organic keywords"] || rowObj["keywords"] || "15000";
           const organicKeywords = parseInt(String(rawKwCount).replace(/[^0-9]/g, ""), 10) || 15000;
 
-          const rawTraffic = rowObj["monthly traffic"] || rowObj["traffic"] || "80000";
-          const monthlyTraffic = parseInt(String(rawTraffic).replace(/[^0-9]/g, ""), 10) || 80000;
+          const rawTraffic = rowObj["estimated traffic"] || rowObj["monthly traffic"] || rowObj["traffic"] || "85k/mo";
+          const estimatedTraffic = String(rawTraffic).includes("/mo") ? String(rawTraffic) : `${rawTraffic}/mo`;
 
-          const rawStrengths = rowObj["strengths"] || "Strong technical baseline; Established backlink equity";
-          const strengths = String(rawStrengths)
-            .split(/[;,|]/)
-            .map((s) => s.trim())
-            .filter(Boolean);
-
-          const rawWeaknesses = rowObj["weaknesses"] || "Low AI Overview share; Slower update cycle";
-          const weaknesses = String(rawWeaknesses)
-            .split(/[;,|]/)
-            .map((w) => w.trim())
-            .filter(Boolean);
-
-          const rawAiShare = rowObj["ai overview share"] || rowObj["ai share"] || "55%";
-          const aiOverviewShare = Math.min(
+          const rawAiShare = rowObj["ai overview %"] || rowObj["ai overview presence"] || rowObj["ai overview share"] || rowObj["ai share"] || "55%";
+          const aiOverviewPresence = Math.min(
             100,
             Math.max(0, parseInt(String(rawAiShare).replace(/[^0-9]/g, ""), 10) || 55)
           );
+
+          const rawBacklinks = rowObj["backlinks"] || rowObj["backlinks count"] || "8500";
+          const backlinksCount = parseInt(String(rawBacklinks).replace(/[^0-9]/g, ""), 10) || 8500;
+
+          const rawOverlap = rowObj["overlap keywords"] || rowObj["overlap"] || "450";
+          const overlapKeywordsCount = parseInt(String(rawOverlap).replace(/[^0-9]/g, ""), 10) || 450;
 
           const newComp: CompetitorItem = {
             id: `comp-import-${Date.now()}-${i}-${Math.random().toString(36).substr(2, 4)}`,
@@ -207,10 +201,11 @@ export const CsvImportModal: React.FC<CsvImportModalProps> = ({
             domain,
             domainAuthority,
             organicKeywords,
-            monthlyTraffic,
-            strengths: strengths.length > 0 ? strengths : ["High brand authority"],
-            weaknesses: weaknesses.length > 0 ? weaknesses : ["Delayed schema adoption"],
-            aiOverviewShare,
+            estimatedTraffic,
+            aiOverviewPresence,
+            backlinksCount,
+            overlapKeywordsCount,
+            dateAdded: new Date().toISOString().slice(0, 10),
             archived: false,
           };
 
@@ -545,11 +540,11 @@ export const CsvImportModal: React.FC<CsvImportModalProps> = ({
                             <td className="p-2 text-right font-mono text-gray-700 dark:text-gray-300">
                               {row.organicKeywords.toLocaleString()}
                             </td>
-                            <td className="p-2 text-right font-mono text-gray-700 dark:text-gray-300">
-                              {row.monthlyTraffic.toLocaleString()}
+                            <td className="p-2 text-right font-semibold text-gray-700 dark:text-gray-300">
+                              {row.estimatedTraffic}
                             </td>
                             <td className="p-2 text-center font-mono text-[#ffa500] font-bold">
-                              {row.aiOverviewShare}%
+                              {row.aiOverviewPresence}%
                             </td>
                           </>
                         )}

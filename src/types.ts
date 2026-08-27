@@ -1,11 +1,21 @@
 export type NavigationTab =
   | "overview"
+  | "services-catalog"
+  | "website-discovery"
+  | "ai-consultant"
   | "ai-search-eeat"
   | "a2a-judge"
   | "keywords"
   | "initial-audit"
   | "onpage-tech"
+  | "schema-generator"
+  | "internal-linking"
+  | "migration-seo"
   | "content-marketing"
+  | "platform-guides"
+  | "integrations-center"
+  | "project-management"
+  | "white-label"
   | "audio-transcriber"
   | "packages-roi"
   | "algorithm-intel"
@@ -302,4 +312,183 @@ export interface PayPalSubscriptionVerifyPayload {
   orderId?: string;
   facilitatorAccessToken?: string;
 }
+
+// ==========================================
+// WEBSITE DISCOVERY & 36-SIGNAL CRAWLER
+// ==========================================
+export interface DiscoverySignalItem {
+  id: number;
+  name: string;
+  category: "Technical" | "Architecture" | "On-Page" | "Performance" | "Authority & Quality";
+  status: "Passed" | "Warning" | "Critical" | "Info";
+  value: string;
+  description: string;
+  impact: "Critical" | "High" | "Medium" | "Low";
+  recommendation: string;
+}
+
+export interface WebsiteDiscoveryReport {
+  url: string;
+  scannedAt: string;
+  cmsPlatform: string;
+  httpsSecure: boolean;
+  seoHealthScore: number; // 0-100
+  scoreDisclaimer: string;
+  signalsCount: {
+    passed: number;
+    warning: number;
+    critical: number;
+  };
+  signals: DiscoverySignalItem[];
+  coreWebVitals: {
+    lcp: { value: string; rating: "Good" | "Needs Improvement" | "Poor" };
+    inp: { value: string; rating: "Good" | "Needs Improvement" | "Poor" };
+    cls: { value: string; rating: "Good" | "Needs Improvement" | "Poor" };
+    ttfb: { value: string; rating: "Good" | "Needs Improvement" | "Poor" };
+  };
+  summary: string;
+}
+
+// ==========================================
+// SCHEMA / STRUCTURED DATA ENGINE
+// ==========================================
+export type SchemaType =
+  | "Organization"
+  | "LocalBusiness"
+  | "Person"
+  | "Product"
+  | "Article"
+  | "BlogPosting"
+  | "BreadcrumbList"
+  | "FAQPage"
+  | "HowTo"
+  | "Event"
+  | "Service"
+  | "Review"
+  | "AggregateRating"
+  | "WebSite"
+  | "WebPage"
+  | "ImageObject"
+  | "VideoObject";
+
+export interface SchemaValidationResult {
+  isValid: boolean;
+  errors: string[];
+  warnings: string[];
+  recommendations: string[];
+  jsonLdOutput: string;
+}
+
+// ==========================================
+// INTERNAL LINKING GRAPH ENGINE
+// ==========================================
+export interface InternalLinkOpportunity {
+  id: string;
+  sourcePage: string;
+  targetPage: string;
+  anchorText: string;
+  reason: string;
+  cluster: string;
+  status: "New" | "Approved" | "Rejected" | "Implemented";
+  impactScore: number; // 1-100
+  targetPageAuth: number; // Authority rating
+}
+
+// ==========================================
+// MIGRATION & REPLATFORMING SEO
+// ==========================================
+export interface RedirectMappingItem {
+  id: string;
+  oldUrl: string;
+  newUrl: string;
+  statusCode: 301 | 302 | 410;
+  category: string;
+  status: "Mapped" | "Needs Review" | "Chain Detected" | "Broken Target";
+  trafficWeight: "High" | "Medium" | "Low";
+  sourcePlatform?: string;
+  targetPlatform?: string;
+}
+
+export interface MigrationAuditTask {
+  id: string;
+  phase: "Pre-Launch" | "Launch-Day" | "Post-Launch Monitoring";
+  title: string;
+  status: "Completed" | "In Progress" | "Pending" | "Attention Needed";
+  priority: "Critical" | "High" | "Medium";
+  details: string;
+}
+
+// ==========================================
+// INTEGRATIONS & CONNECTORS
+// ==========================================
+export interface ToolIntegrationItem {
+  id: string;
+  name: string;
+  category: "Google Suite" | "Competitor & Keywords" | "Technical Crawl" | "CMS & Store";
+  iconName: string;
+  status: "Connected" | "Authorization Required" | "Syncing" | "Not Connected" | "Error";
+  lastSync?: string;
+  docUrl: string;
+  description: string;
+  apiEndpoint?: string;
+  featuresAvailable: string[];
+}
+
+// ==========================================
+// AI CONSULTANT & WHAT SHOULD I DO NEXT
+// ==========================================
+export type AiInsightTier =
+  | "Observed Data"
+  | "Calculated Insight"
+  | "Recommendation"
+  | "Assumption"
+  | "Data Not Available";
+
+export interface AiActionItem {
+  id: string;
+  title: string;
+  category: "Critical Issue" | "Growth Opportunity" | "Technical Fix" | "Content Strategy" | "Local SEO";
+  priority: "P1 - Immediate" | "P2 - High" | "P3 - Medium" | "P4 - Low";
+  why: string;
+  impact: string;
+  how: string;
+  businessValue: string;
+  effort: "Low" | "Medium" | "High";
+  status: "New" | "Reviewed" | "Approved" | "In Progress" | "Completed" | "Rejected";
+  tier: AiInsightTier;
+}
+
+// ==========================================
+// AGENCY PROJECT MANAGEMENT & TASKS
+// ==========================================
+export interface AgencyTaskItem {
+  id: string;
+  title: string;
+  clientName: string;
+  category: "Technical Audit" | "Local SEO" | "Content Campaign" | "Link Building" | "Migration" | "E-commerce SEO" | "Monthly Maintenance";
+  assignee: string;
+  deadline: string;
+  priority: "Critical" | "High" | "Medium" | "Low";
+  status: "New" | "In Progress" | "Client Review" | "Approved" | "Completed";
+  progressPercentage: number;
+  commentsCount: number;
+}
+
+// ==========================================
+// WHITE-LABEL AGENCY CONFIGURATION
+// ==========================================
+export interface WhiteLabelConfig {
+  isEnabled: boolean;
+  agencyName: string;
+  logoUrl?: string;
+  primaryColor: string;
+  secondaryColor: string;
+  customDomain: string;
+  supportEmail: string;
+  phone: string;
+  address: string;
+  hidePlatformBranding: boolean;
+  clientPortalEnabled: boolean;
+}
+
 

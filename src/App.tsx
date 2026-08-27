@@ -45,6 +45,18 @@ import { AlgorithmUpdatesView } from "./components/views/AlgorithmUpdatesView";
 import { SubscriptionBillingView } from "./components/views/SubscriptionBillingView";
 import { TrialExpirationLockout } from "./components/TrialExpirationLockout";
 
+// New Agency Module Views
+import { ServicesCatalogView } from "./components/views/ServicesCatalogView";
+import { WebsiteDiscoveryView } from "./components/views/WebsiteDiscoveryView";
+import { SchemaGeneratorView } from "./components/views/SchemaGeneratorView";
+import { InternalLinkingView } from "./components/views/InternalLinkingView";
+import { MigrationSeoView } from "./components/views/MigrationSeoView";
+import { PlatformGuidesView } from "./components/views/PlatformGuidesView";
+import { IntegrationsCenterView } from "./components/views/IntegrationsCenterView";
+import { AiConsultantView } from "./components/views/AiConsultantView";
+import { ProjectManagementView } from "./components/views/ProjectManagementView";
+import { WhiteLabelView } from "./components/views/WhiteLabelView";
+
 import {
   INITIAL_KEYWORDS,
   INITIAL_COMPETITORS,
@@ -775,6 +787,28 @@ function AppContent() {
                   onToggleRecording={() => setIsRecording(!isRecording)}
                 />
               )}
+
+              {currentTab === "services-catalog" && (
+                <ServicesCatalogView onNavigate={setCurrentTab} />
+              )}
+
+              {currentTab === "website-discovery" && <WebsiteDiscoveryView />}
+
+              {currentTab === "schema-generator" && <SchemaGeneratorView />}
+
+              {currentTab === "internal-linking" && <InternalLinkingView />}
+
+              {currentTab === "migration-seo" && <MigrationSeoView />}
+
+              {currentTab === "platform-guides" && <PlatformGuidesView />}
+
+              {currentTab === "integrations-center" && <IntegrationsCenterView />}
+
+              {currentTab === "ai-consultant" && <AiConsultantView />}
+
+              {currentTab === "project-management" && <ProjectManagementView />}
+
+              {currentTab === "white-label" && <WhiteLabelView />}
 
               {currentTab === "packages-roi" && (
                 <PackagesPricingView
