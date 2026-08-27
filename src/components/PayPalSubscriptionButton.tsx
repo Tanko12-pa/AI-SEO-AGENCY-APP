@@ -50,6 +50,42 @@ export const PayPalSubscriptionButton: React.FC<PayPalSubscriptionButtonProps> =
   const [approvedSubscriptionId, setApprovedSubscriptionId] = useState<string | null>(null);
   const [isProcessingApproval, setIsProcessingApproval] = useState(false);
 
+  // Global error & rejection suppressor for benign popup close events
+  useEffect(() => {
+    const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+      const reasonStr = String(event?.reason?.message || event?.reason || "");
+      if (
+        reasonStr.includes("Detected popup close") ||
+        reasonStr.includes("popup close") ||
+        reasonStr.includes("window closed") ||
+        reasonStr.includes("popup_closed")
+      ) {
+        event.preventDefault();
+        console.info("Handled PayPal popup close event gracefully.");
+      }
+    };
+
+    const handleGlobalError = (event: ErrorEvent) => {
+      const messageStr = String(event?.message || "");
+      if (
+        messageStr.includes("Detected popup close") ||
+        messageStr.includes("popup close") ||
+        messageStr.includes("window closed")
+      ) {
+        event.preventDefault();
+        console.info("Handled PayPal popup error event gracefully.");
+      }
+    };
+
+    window.addEventListener("unhandledrejection", handleUnhandledRejection);
+    window.addEventListener("error", handleGlobalError);
+
+    return () => {
+      window.removeEventListener("unhandledrejection", handleUnhandledRejection);
+      window.removeEventListener("error", handleGlobalError);
+    };
+  }, []);
+
   // Script Loader Effect
   useEffect(() => {
     let isMounted = true;
@@ -177,9 +213,29 @@ export const PayPalSubscriptionButton: React.FC<PayPalSubscriptionButtonProps> =
               setIsProcessingApproval(false);
             }
           },
+          onCancel: function (data: any) {
+            setIsProcessingApproval(false);
+            setErrorMessage(null);
+            console.info("PayPal checkout popup closed or cancelled by user.", data);
+          },
           onError: function (err: any) {
-            console.error("PayPal Button Error:", err);
-            setErrorMessage("PayPal Button Encountered an Error. You can use direct verification.");
+            const errMsg = String(err?.message || err || "");
+            const isPopupClosed =
+              errMsg.includes("Detected popup close") ||
+              errMsg.includes("popup close") ||
+              errMsg.includes("window closed") ||
+              errMsg.includes("popup_closed") ||
+              errMsg.includes("closed");
+
+            if (isPopupClosed) {
+              // Normal user cancellation or popup window close - not an application fault
+              setIsProcessingApproval(false);
+              console.info("PayPal checkout window closed before completion.");
+              return;
+            }
+
+            console.warn("PayPal Button Notice:", err);
+            setErrorMessage("PayPal Button Encountered an Issue. You can use direct authorization.");
             if (onError) onError(err);
           },
         })
@@ -274,7 +330,7 @@ export const PayPalSubscriptionButton: React.FC<PayPalSubscriptionButtonProps> =
         <div className="p-3 bg-emerald-50 dark:bg-[#0c1e0c] rounded-xl border border-emerald-200 dark:border-[#1e461e] text-xs text-emerald-800 dark:text-emerald-300 flex items-center gap-2">
           <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
           <span className="truncate">
-            Subscription Approved! ID: <strong>{approvedSubscriptionId}</strong> (Plan: {effectivePlanId})
+            Subscription Approved! ID: <strong>{approvedSubscriptionId}</strong>
           </span>
         </div>
       )}

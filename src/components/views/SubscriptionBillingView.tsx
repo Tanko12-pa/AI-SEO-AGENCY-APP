@@ -132,7 +132,7 @@ export const SubscriptionBillingView: React.FC<SubscriptionBillingViewProps> = (
       prompt: gatekeeperTestPrompt,
       model: gatekeeperTestModel,
       bypassCache: gatekeeperBypassCache,
-      userEmail: currentUser?.email || "akindewum@gmail.com",
+      userEmail: currentUser?.email || "subscriber@agency.com",
       subscriptionPlan: userPlan,
       isTrialExpired: isAccessRestricted,
     });
@@ -158,13 +158,13 @@ export const SubscriptionBillingView: React.FC<SubscriptionBillingViewProps> = (
   const [signUpStatus, setSignUpStatus] = useState<{ message: string; isError: boolean } | null>(null);
 
   // Sign In Form State
-  const [signInEmail, setSignInEmail] = useState(currentUser?.email || "akindewum@gmail.com");
+  const [signInEmail, setSignInEmail] = useState(currentUser?.email || "");
   const [signInPassword, setSignInPassword] = useState("");
   const [showSignInPass, setShowSignInPass] = useState(false);
   const [signInStatus, setSignInStatus] = useState<{ message: string; isError: boolean } | null>(null);
 
   // Change Password Form State
-  const [changeEmail, setChangeEmail] = useState(currentUser?.email || "akindewum@gmail.com");
+  const [changeEmail, setChangeEmail] = useState(currentUser?.email || "");
   const [currentPass, setCurrentPass] = useState("");
   const [newPass, setNewPass] = useState("");
   const [confirmNewPass, setConfirmNewPass] = useState("");
@@ -174,7 +174,7 @@ export const SubscriptionBillingView: React.FC<SubscriptionBillingViewProps> = (
   // Checkout / Payment Modal State
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [selectedPlanForCheckout, setSelectedPlanForCheckout] = useState<"monthly" | "yearly">("monthly");
-  const [cardHolder, setCardHolder] = useState(currentUser?.name || "Akindewum");
+  const [cardHolder, setCardHolder] = useState(currentUser?.name || "Subscriber");
   const [cardNumber, setCardNumber] = useState("4242 •••• •••• 4242");
   const [cardExpiry, setCardExpiry] = useState("08/29");
   const [cardCvc, setCardCvc] = useState("789");
@@ -348,7 +348,7 @@ export const SubscriptionBillingView: React.FC<SubscriptionBillingViewProps> = (
 Invoice Number: ${inv.invoiceNumber}
 Date Issued:    ${inv.date}
 Client Name:    ${currentUser?.name || "Enterprise Client"}
-Client Email:   ${currentUser?.email || "akindewum@gmail.com"}
+Client Email:   ${currentUser?.email || "subscriber@agency.com"}
 Plan Tier:      ${inv.plan}
 Amount Paid:    $${inv.amount.toFixed(2)} USD
 Payment Status: PAID & CONFIRMED
@@ -479,7 +479,6 @@ Thank you for powering your digital growth with AI SEO Agency!
               id="hero-monthly-pay-btn"
               onClick={() => handleOpenPayPal("monthly")}
               className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#ffc439] hover:bg-[#f2b930] text-[#003087] font-black text-xs shadow-md transition-all active:scale-95"
-              title="PayPal Plan ID: P-60J823292U163132VNKGRA6Y"
             >
               <span className="italic font-black text-xs">PayPal</span>
               <span>Monthly ($29.99)</span>
@@ -489,7 +488,6 @@ Thank you for powering your digital growth with AI SEO Agency!
               id="hero-yearly-pay-btn"
               onClick={() => handleOpenPayPal("yearly")}
               className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-amber-400 to-[#ffa500] hover:brightness-110 text-slate-950 font-black text-xs shadow-md transition-all active:scale-95"
-              title="PayPal Plan ID: P-0SJ71276U2989504JNKGRCHQ"
             >
               <Star className="w-3.5 h-3.5 text-slate-950 fill-slate-950" />
               <span>Yearly ($299.99)</span>
@@ -909,11 +907,12 @@ Thank you for powering your digital growth with AI SEO Agency!
                   <span>Pay $29.99 / Month with PayPal</span>
                 </button>
 
-                <div className="flex items-center justify-between text-[10px] text-gray-500 font-mono px-1">
-                  <span>Plan ID:</span>
-                  <span className="font-bold text-gray-700 dark:text-gray-300">
-                    P-60J823292U163132VNKGRA6Y
+                <div className="flex items-center justify-between text-[10px] text-gray-500 font-medium px-1">
+                  <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+                    <CheckCircle2 className="w-3 h-3" />
+                    <span>Automated Monthly Billing</span>
                   </span>
+                  <span className="text-gray-400">Cancel Anytime</span>
                 </div>
 
                 <button
@@ -1001,11 +1000,12 @@ Thank you for powering your digital growth with AI SEO Agency!
                   <span>Pay $299.99 / Year with PayPal</span>
                 </button>
 
-                <div className="flex items-center justify-between text-[10px] text-gray-500 font-mono px-1">
-                  <span>Plan ID:</span>
-                  <span className="font-bold text-gray-700 dark:text-gray-300">
-                    P-0SJ71276U2989504JNKGRCHQ
+                <div className="flex items-center justify-between text-[10px] text-gray-500 font-medium px-1">
+                  <span className="flex items-center gap-1 text-amber-700 dark:text-[#ffa500]">
+                    <Star className="w-3 h-3 fill-current" />
+                    <span>Annual License (Save 17%)</span>
                   </span>
+                  <span className="text-gray-400">Continuous Access</span>
                 </div>
 
                 <button
@@ -1058,7 +1058,7 @@ Thank you for powering your digital growth with AI SEO Agency!
                     <th className="p-3">Invoice #</th>
                     <th className="p-3">Date</th>
                     <th className="p-3">Description</th>
-                    <th className="p-3">Gateway / Plan ID</th>
+                    <th className="p-3">Gateway Reference</th>
                     <th className="p-3">Amount</th>
                     <th className="p-3">Method</th>
                     <th className="p-3">Status</th>
@@ -1072,12 +1072,14 @@ Thank you for powering your digital growth with AI SEO Agency!
                       <td className="p-3">{inv.date}</td>
                       <td className="p-3 max-w-xs truncate">{inv.description}</td>
                       <td className="p-3">
-                        {inv.paypalPlanId ? (
-                          <span className="font-mono text-[10px] bg-blue-50 dark:bg-[#122412] text-[#003087] dark:text-[#ffa500] px-1.5 py-0.5 rounded font-bold">
-                            {inv.paypalPlanId}
+                        {inv.paypalPlanId || inv.paymentMethod.includes("PayPal") ? (
+                          <span className="font-semibold text-[10px] bg-blue-50 dark:bg-[#122412] text-[#003087] dark:text-[#ffa500] px-2 py-0.5 rounded-full border border-blue-200 dark:border-[#224822]">
+                            PayPal Secure Gateway
                           </span>
                         ) : (
-                          <span className="text-gray-400 font-mono text-[11px]">—</span>
+                          <span className="font-semibold text-[10px] bg-gray-100 dark:bg-[#163016] text-gray-700 dark:text-gray-300 px-2 py-0.5 rounded-full">
+                            Direct Activation
+                          </span>
                         )}
                       </td>
                       <td className="p-3 font-bold font-mono text-gray-900 dark:text-white">
@@ -1180,7 +1182,7 @@ Thank you for powering your digital growth with AI SEO Agency!
 
           {/* Configuration Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* CARD 1: PAYPAL PLAN ID MONTHLY ($29.99) */}
+            {/* CARD 1: PAYPAL MONTHLY ($29.99) */}
             <div className="bg-white dark:bg-[#0b170b] p-6 rounded-2xl border border-gray-200 dark:border-[#163016] shadow-sm space-y-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -1191,7 +1193,7 @@ Thank you for powering your digital growth with AI SEO Agency!
                     <h3 className="font-bold text-sm text-gray-900 dark:text-white">
                       Monthly Subscription Plan
                     </h3>
-                    <p className="text-[11px] text-gray-500">PAYPAL_PLAN_ID_MONTHLY Configuration</p>
+                    <p className="text-[11px] text-gray-500">Automated PayPal Recurring Billing</p>
                   </div>
                 </div>
                 <span className="text-xl font-extrabold text-[#003087] dark:text-[#ffa500] font-mono">
@@ -1199,21 +1201,15 @@ Thank you for powering your digital growth with AI SEO Agency!
                 </span>
               </div>
 
-              <div className="p-3.5 rounded-xl bg-gray-50 dark:bg-[#060e06] border border-gray-200 dark:border-[#163016] space-y-2">
-                <div className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">
-                  Configured PayPal Plan ID:
+              <div className="p-3.5 rounded-xl bg-blue-50/50 dark:bg-[#060e06] border border-blue-100 dark:border-[#163016] space-y-1.5">
+                <div className="text-[10px] text-gray-500 font-bold uppercase tracking-wider flex items-center justify-between">
+                  <span>Billing Configuration:</span>
+                  <span className="text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3" /> Secure & Active
+                  </span>
                 </div>
-                <div className="flex items-center justify-between gap-2">
-                  <code className="font-mono text-xs font-bold text-gray-900 dark:text-white truncate">
-                    P-60J823292U163132VNKGRA6Y
-                  </code>
-                  <button
-                    onClick={() => handleCopyText("P-60J823292U163132VNKGRA6Y")}
-                    className="p-1.5 rounded-md hover:bg-gray-200 dark:hover:bg-[#163016] text-gray-500 hover:text-gray-900 dark:hover:text-white transition-colors"
-                    title="Copy Monthly Plan ID"
-                  >
-                    <Copy className="w-3.5 h-3.5" />
-                  </button>
+                <div className="text-xs font-medium text-gray-800 dark:text-gray-200">
+                  Direct PayPal Smart Button integration with instant account activation
                 </div>
               </div>
 
@@ -1240,14 +1236,18 @@ Thank you for powering your digital growth with AI SEO Agency!
                   onSuccess={(details) => {
                     showNotice(`Monthly Subscription Active! Invoice: ${details.invoiceNumber}`);
                   }}
-                  onError={() => {
+                  onError={(err) => {
+                    const msg = String(err?.message || err || "");
+                    if (msg.includes("Detected popup close") || msg.includes("popup close") || msg.includes("window closed")) {
+                      return;
+                    }
                     showNotice("PayPal checkout notice: Fallback authorization available.");
                   }}
                 />
               </div>
             </div>
 
-            {/* CARD 2: PAYPAL PLAN ID YEARLY ($299.99) */}
+            {/* CARD 2: PAYPAL YEARLY ($299.99) */}
             <div className="bg-white dark:bg-[#0b170b] p-6 rounded-2xl border-2 border-amber-300 dark:border-[#4d3a00] shadow-sm space-y-4 relative">
               <span className="absolute top-4 right-4 bg-[#ffa500] text-slate-950 text-[9px] font-black uppercase px-2 py-0.5 rounded-full shadow">
                 Save 17% (2 Mo Free)
@@ -1262,7 +1262,7 @@ Thank you for powering your digital growth with AI SEO Agency!
                     <h3 className="font-bold text-sm text-gray-900 dark:text-white">
                       Yearly Subscription License
                     </h3>
-                    <p className="text-[11px] text-gray-500">PAYPAL_PLAN_ID_YEARLY Configuration</p>
+                    <p className="text-[11px] text-gray-500">Automated PayPal Annual Renewal</p>
                   </div>
                 </div>
               </div>
@@ -1274,21 +1274,15 @@ Thank you for powering your digital growth with AI SEO Agency!
                 <span className="text-xs text-gray-500">/ year (Single annual payment)</span>
               </div>
 
-              <div className="p-3.5 rounded-xl bg-gray-50 dark:bg-[#060e06] border border-gray-200 dark:border-[#163016] space-y-2">
-                <div className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">
-                  Configured PayPal Plan ID:
+              <div className="p-3.5 rounded-xl bg-amber-50/50 dark:bg-[#060e06] border border-amber-200 dark:border-[#163016] space-y-1.5">
+                <div className="text-[10px] text-gray-500 font-bold uppercase tracking-wider flex items-center justify-between">
+                  <span>Billing Configuration:</span>
+                  <span className="text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3" /> Secure & Active
+                  </span>
                 </div>
-                <div className="flex items-center justify-between gap-2">
-                  <code className="font-mono text-xs font-bold text-gray-900 dark:text-white truncate">
-                    P-0SJ71276U2989504JNKGRCHQ
-                  </code>
-                  <button
-                    onClick={() => handleCopyText("P-0SJ71276U2989504JNKGRCHQ")}
-                    className="p-1.5 rounded-md hover:bg-gray-200 dark:hover:bg-[#163016] text-gray-500 hover:text-gray-900 dark:hover:text-white transition-colors"
-                    title="Copy Yearly Plan ID"
-                  >
-                    <Copy className="w-3.5 h-3.5" />
-                  </button>
+                <div className="text-xs font-medium text-gray-800 dark:text-gray-200">
+                  Direct PayPal Smart Button integration with 2 months free savings
                 </div>
               </div>
 
@@ -1315,7 +1309,11 @@ Thank you for powering your digital growth with AI SEO Agency!
                   onSuccess={(details) => {
                     showNotice(`Yearly Subscription Active! Invoice: ${details.invoiceNumber}`);
                   }}
-                  onError={() => {
+                  onError={(err) => {
+                    const msg = String(err?.message || err || "");
+                    if (msg.includes("Detected popup close") || msg.includes("popup close") || msg.includes("window closed")) {
+                      return;
+                    }
                     showNotice("PayPal checkout notice: Fallback authorization available.");
                   }}
                 />
@@ -1463,7 +1461,7 @@ Thank you for powering your digital growth with AI SEO Agency!
                   </>
                 )}
               </div>
-              <p className="text-[10px] text-gray-500">{currentUser?.email || "akindewum@gmail.com"}</p>
+              <p className="text-[10px] text-gray-500">{currentUser?.email || "subscriber@agency.com"}</p>
             </div>
 
             <div className="bg-white dark:bg-[#0b170b] p-4 rounded-xl border border-gray-200 dark:border-[#163016] shadow-sm space-y-1">
@@ -1825,7 +1823,7 @@ Thank you for powering your digital growth with AI SEO Agency!
                   id="signup-name-input"
                   type="text"
                   required
-                  placeholder="e.g. Akindewum Adeleke"
+                  placeholder="e.g. Alex Morgan"
                   value={signUpName}
                   onChange={(e) => setSignUpName(e.target.value)}
                   className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-gray-300 dark:border-[#163016] bg-gray-50 dark:bg-[#060e06] text-gray-900 dark:text-white focus:ring-2 focus:ring-[#004d00] focus:border-transparent outline-hidden"
@@ -2086,16 +2084,16 @@ Thank you for powering your digital growth with AI SEO Agency!
             <div className="bg-amber-50 dark:bg-[#18150a] p-3 rounded-xl border border-amber-200 dark:border-[#4d3a00] flex items-center justify-between">
               <div>
                 <span className="text-[11px] font-bold text-amber-900 dark:text-[#ffa500]">
-                  Default Demo Account:
+                  Standard Demo Credentials:
                 </span>
                 <p className="text-[10px] text-gray-600 dark:text-gray-400 font-mono">
-                  akindewum@gmail.com / Password123!
+                  user@agency.com / Password123!
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => {
-                  setSignInEmail("akindewum@gmail.com");
+                  setSignInEmail("user@agency.com");
                   setSignInPassword("Password123!");
                 }}
                 className="px-2.5 py-1 rounded bg-[#ffa500] text-slate-950 font-bold text-[10px] hover:brightness-110 shadow-xs"

@@ -1416,7 +1416,7 @@ const webhookEventsLog: WebhookLogEvent[] = [];
 const SEED_SUB_ID = "P-60J823292U163132VNKGRA6Y-DEMO";
 subscriptionStore.set(SEED_SUB_ID, {
   subscriptionId: SEED_SUB_ID,
-  userEmail: "akindewum@gmail.com",
+  userEmail: "subscriber@agency.com",
   planType: "monthly",
   planId: PAYPAL_PLAN_MONTHLY,
   status: "ACTIVE",
@@ -1652,7 +1652,7 @@ app.post("/api/paypal/webhook/simulate", (req, res) => {
     eventType = "BILLING.SUBSCRIPTION.ACTIVATED",
     subscriptionId,
     planType = "monthly",
-    userEmail = "akindewum@gmail.com",
+    userEmail = "subscriber@agency.com",
   } = req.body;
 
   const isYearly = planType === "yearly";
@@ -1862,8 +1862,8 @@ const handleAiGatekeeper = async (req: express.Request, res: express.Response) =
       responseMimeType = "application/json",
       temperature = 0.4,
       bypassCache = false,
-      userEmail = req.headers["x-user-email"] as string || "akindewum@gmail.com",
-      subscriptionPlan = req.headers["x-user-plan"] as string || "free_trial",
+      userEmail = (req.headers["x-user-email"] as string) || "subscriber@agency.com",
+      subscriptionPlan = (req.headers["x-user-plan"] as string) || "free_trial",
       isTrialExpired = req.headers["x-trial-expired"] === "true",
       params = {},
     } = req.body;

@@ -607,10 +607,10 @@ export const Header: React.FC<HeaderProps> = ({
             title="User Profile, Auth & Algorithm Notification Preferences"
           >
             <div className="h-8 w-8 rounded-full bg-[#ffa500] flex items-center justify-center text-slate-950 font-black text-xs shadow-sm ring-2 ring-[#004d00] dark:ring-[#163016]">
-              {currentUser?.avatarInitials || "AK"}
+              {currentUser?.avatarInitials || "AS"}
             </div>
             <div className="hidden xl:block text-left text-[11px] leading-tight">
-              <div className="font-bold text-gray-900 dark:text-white">{currentUser?.name || "Akindewum"}</div>
+              <div className="font-bold text-gray-900 dark:text-white">{currentUser?.name || "Subscriber"}</div>
               <div className="text-[10px] text-gray-500 dark:text-gray-400 truncate max-w-[110px]">
                 {currentUser?.subscriptionPlan === "yearly"
                   ? "Yearly Pro ($299.99)"
@@ -633,11 +633,11 @@ export const Header: React.FC<HeaderProps> = ({
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-3">
                     <div className="h-11 w-11 rounded-xl bg-[#ffa500] flex items-center justify-center text-slate-950 font-black text-sm shadow-md">
-                      {currentUser?.avatarInitials || "AK"}
+                      {currentUser?.avatarInitials || "AS"}
                     </div>
                     <div>
                       <div className="font-bold text-sm text-gray-900 dark:text-white flex items-center gap-1.5">
-                        {currentUser?.name || "Guest User"}
+                        {currentUser?.name || "Subscriber"}
                         <span className="text-[9px] bg-[#004d00] text-white px-1.5 py-0.2 rounded font-mono font-bold">
                           {currentUser?.subscriptionPlan === "yearly"
                             ? "YEARLY PRO"
@@ -647,10 +647,10 @@ export const Header: React.FC<HeaderProps> = ({
                         </span>
                       </div>
                       <div className="text-[11px] text-gray-600 dark:text-gray-300 font-mono">
-                        {currentUser?.email || "akindewum@gmail.com"}
+                        {currentUser?.email || "subscriber@agency.com"}
                       </div>
                       <div className="text-[10px] text-green-800 dark:text-green-400 font-semibold mt-0.5">
-                        {currentUser?.role || "Lead AI SEO Architect & Director"}
+                        {currentUser?.role || "Lead AI SEO Architect"}
                       </div>
                     </div>
                   </div>
@@ -670,16 +670,16 @@ export const Header: React.FC<HeaderProps> = ({
                 </div>
 
                 {/* Quick Auth & Billing Action Links */}
-                <div className="mt-3 pt-2.5 border-t border-green-200/50 dark:border-[#143314] grid grid-cols-2 gap-1.5 text-[11px]">
+                <div className="mt-3 pt-2.5 border-t border-green-200/50 dark:border-[#143314] grid grid-cols-3 gap-1.5 text-[11px]">
                   <button
                     onClick={() => {
                       onNavigate("subscription-billing");
                       setIsProfileMenuOpen(false);
                     }}
-                    className="flex items-center gap-1 p-1.5 rounded-lg bg-[#004d00] text-white hover:bg-[#003800] font-bold text-[10px] transition-colors"
+                    className="flex items-center justify-center gap-1 p-1.5 rounded-lg bg-[#004d00] text-white hover:bg-[#003800] font-bold text-[10px] transition-colors"
                   >
                     <CreditCard className="w-3 h-3 text-[#ffa500]" />
-                    <span>Billing & Plans</span>
+                    <span>Billing</span>
                   </button>
 
                   <button
@@ -687,10 +687,23 @@ export const Header: React.FC<HeaderProps> = ({
                       onNavigate("subscription-billing");
                       setIsProfileMenuOpen(false);
                     }}
-                    className="flex items-center gap-1 p-1.5 rounded-lg bg-white dark:bg-[#122412] text-gray-800 dark:text-gray-200 border border-gray-200 dark:border-[#1e461e] hover:bg-gray-50 font-bold text-[10px] transition-colors"
+                    className="flex items-center justify-center gap-1 p-1.5 rounded-lg bg-white dark:bg-[#122412] text-gray-800 dark:text-gray-200 border border-gray-200 dark:border-[#1e461e] hover:bg-gray-50 font-bold text-[10px] transition-colors"
                   >
                     <UserPlus className="w-3 h-3 text-[#004d00] dark:text-[#ffa500]" />
-                    <span>Sign Up / Sign In</span>
+                    <span>Account</span>
+                  </button>
+
+                  <button
+                    id="header-profile-signout-btn"
+                    onClick={async () => {
+                      setIsProfileMenuOpen(false);
+                      await signOut();
+                    }}
+                    className="flex items-center justify-center gap-1 p-1.5 rounded-lg bg-red-50 dark:bg-[#200e0e] text-red-600 dark:text-red-400 border border-red-200 dark:border-red-900 hover:bg-red-100 font-bold text-[10px] transition-colors"
+                    title="Sign Out of Session"
+                  >
+                    <LogOut className="w-3 h-3 text-red-500" />
+                    <span>Sign Out</span>
                   </button>
                 </div>
               </div>

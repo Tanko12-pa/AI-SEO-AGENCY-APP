@@ -25,13 +25,13 @@ const LOCAL_STORAGE_CURRENT_USER_KEY = "ai_seo_agency_current_user_v2";
 const LOCAL_STORAGE_INVOICES_KEY = "ai_seo_agency_invoices_v2";
 
 const INITIAL_DEFAULT_USER: AuthAccount = {
-  id: "user-akindewum",
-  name: "Akindewum",
-  email: "akindewum@gmail.com",
+  id: "user-default-agency",
+  name: "Agency Strategist",
+  email: "user@agency.com",
   password: "Password123!",
-  role: "Lead AI SEO Architect & Director",
+  role: "Lead AI SEO Architect",
   company: "AI SEO Enterprise Agency",
-  avatarInitials: "AK",
+  avatarInitials: "AS",
   createdAt: "2026-08-20T09:00:00.000Z",
   trialStartDate: "2026-08-20T09:00:00.000Z",
   trialEndDate: "2026-08-27T09:00:00.000Z", // 7 days
@@ -73,7 +73,7 @@ interface AuthBillingContextType {
   signInWithFirebase: (email: string, pass: string) => Promise<{ success: boolean; message: string }>;
   signUpWithFirebase: (name: string, email: string, pass: string, company?: string) => Promise<{ success: boolean; message: string }>;
   sendFirebasePasswordReset: (email: string) => Promise<{ success: boolean; message: string }>;
-  signOut: () => void;
+  signOut: (reloadPage?: boolean) => Promise<void> | void;
   changePassword: (email: string, oldPassword: string, newPassword: string) => { success: boolean; message: string };
   resetPasswordDirect: (email: string, newPassword: string) => { success: boolean; message: string };
   subscribe: (
@@ -440,10 +440,10 @@ export const AuthBillingProvider: React.FC<{ children: React.ReactNode }> = ({ c
       const newAcc: AuthAccount = {
         id: fbUser.uid,
         name: fbUser.displayName || fbUser.email?.split("@")[0] || "Agency Strategist",
-        email: fbUser.email || "akindewum@gmail.com",
+        email: fbUser.email || "subscriber@agency.com",
         role: "Lead AI SEO Architect & Director",
         company: "Digital Marketing Enterprise",
-        avatarInitials: (fbUser.displayName || fbUser.email || "AK").slice(0, 2).toUpperCase(),
+        avatarInitials: (fbUser.displayName || fbUser.email || "AS").slice(0, 2).toUpperCase(),
         createdAt: now.toISOString(),
         trialStartDate: now.toISOString(),
         trialEndDate: trialEnd.toISOString(),
@@ -519,14 +519,22 @@ export const AuthBillingProvider: React.FC<{ children: React.ReactNode }> = ({ c
     }
   };
 
-  // 3. Sign Out Handler
-  const signOut = () => {
+  // 3. Sign Out Handler (Supports Firebase / Supabase / Auth0 providers with session clear & reload)
+  const signOut = async (reloadPage: boolean = false) => {
     try {
-      firebaseSignOutUser();
+      await firebaseSignOutUser();
     } catch (e) {
-      // Ignore
+      console.warn("Auth provider sign out notice:", e);
     }
     setCurrentUser(null);
+    try {
+      localStorage.removeItem(LOCAL_STORAGE_CURRENT_USER_KEY);
+    } catch (e) {
+      console.warn("Failed to clear local auth session key:", e);
+    }
+    if (reloadPage && typeof window !== "undefined") {
+      window.location.reload();
+    }
   };
 
   // 4. Change Password Handler (with old password verification)
@@ -707,7 +715,7 @@ export const AuthBillingProvider: React.FC<{ children: React.ReactNode }> = ({ c
       id: `inv-${Date.now()}`,
       invoiceNumber: invoiceNumber,
       date: new Date().toISOString().split("T")[0],
-      description: `AI SEO Agency Suite - ${planName} [PayPal Gateway: ${planId}]`,
+      description: `AI SEO Agency Suite - ${planName} [PayPal Express Gateway]`,
       amount,
       plan: planName,
       status: "Paid",
@@ -747,7 +755,7 @@ export const AuthBillingProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
     return {
       success: true,
-      message: `PayPal subscription verified successfully! Plan ID: ${planId}. Your account is now fully active with uninterrupted access to all AI SEO Agency tools.`,
+      message: `PayPal subscription verified successfully! Your account is now active with uninterrupted access to all AI SEO Agency suite tools.`,
       invoice: newInvoice,
     };
   };

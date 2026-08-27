@@ -45,10 +45,10 @@ export const PayPalGatewayModal: React.FC<PayPalGatewayModalProps> = ({
   const [isProcessing, setIsProcessing] = useState(false);
   const [paymentMode, setPaymentMode] = useState<"paypal_smart" | "paypal_card" | "paypal_paylater">("paypal_smart");
   const [copiedPlanId, setCopiedPlanId] = useState<string | null>(null);
-  const [customPayerEmail, setCustomPayerEmail] = useState(currentUser?.email || "akindewum@gmail.com");
+  const [customPayerEmail, setCustomPayerEmail] = useState(currentUser?.email || "");
 
   // Card sub-inputs for PayPal Guest Checkout
-  const [cardHolder, setCardHolder] = useState(currentUser?.name || "Akindewum Adeleke");
+  const [cardHolder, setCardHolder] = useState(currentUser?.name || "Subscriber");
   const [cardNumber, setCardNumber] = useState("4000 1234 5678 9010");
   const [cardExpiry, setCardExpiry] = useState("08/29");
   const [cardCvv, setCardCvv] = useState("321");
@@ -224,10 +224,10 @@ export const PayPalGatewayModal: React.FC<PayPalGatewayModalProps> = ({
               </div>
 
               <div className="flex justify-between items-center">
-                <span className="text-gray-500">PayPal Plan ID:</span>
-                <code className="font-mono text-[11px] text-[#003087] dark:text-[#ffa500] bg-blue-50 dark:bg-[#122412] px-2 py-0.5 rounded font-bold">
-                  {completionReceipt.planId}
-                </code>
+                <span className="text-gray-500">Gateway Processing:</span>
+                <span className="text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
+                  <CheckCircle2 className="w-3.5 h-3.5" /> PayPal Express Gateway
+                </span>
               </div>
 
               <div className="flex justify-between items-center">
@@ -309,11 +309,9 @@ export const PayPalGatewayModal: React.FC<PayPalGatewayModalProps> = ({
                     </span>
                   </div>
 
-                  <div className="mt-2 pt-2 border-t border-gray-200/60 dark:border-[#163016] flex items-center justify-between text-[10px] text-gray-500 font-mono">
-                    <span>Plan ID:</span>
-                    <span className="font-bold text-gray-700 dark:text-gray-300">
-                      P-60J823292U163132VNKGRA6Y
-                    </span>
+                  <div className="mt-2 pt-2 border-t border-gray-200/60 dark:border-[#163016] flex items-center justify-between text-[10px] text-gray-500 font-medium">
+                    <span className="text-emerald-600 dark:text-emerald-400">● Active Gateway</span>
+                    <span>Billed Monthly</span>
                   </div>
                 </button>
 
@@ -347,48 +345,32 @@ export const PayPalGatewayModal: React.FC<PayPalGatewayModalProps> = ({
                     </span>
                   </div>
 
-                  <div className="mt-2 pt-2 border-t border-gray-200/60 dark:border-[#163016] flex items-center justify-between text-[10px] text-gray-500 font-mono">
-                    <span>Plan ID:</span>
-                    <span className="font-bold text-gray-700 dark:text-gray-300">
-                      P-0SJ71276U2989504JNKGRCHQ
-                    </span>
+                  <div className="mt-2 pt-2 border-t border-gray-200/60 dark:border-[#163016] flex items-center justify-between text-[10px] text-gray-500 font-medium">
+                    <span className="text-amber-700 dark:text-[#ffa500]">★ Best Value</span>
+                    <span>Billed Annually</span>
                   </div>
                 </button>
               </div>
             </div>
 
-            {/* Active PayPal Plan ID Details Box */}
+            {/* Secure PayPal Gateway Security Reassurance Box */}
             <div className="bg-blue-50/80 dark:bg-[#0c1c0c] border border-blue-200 dark:border-[#163016] p-3 rounded-xl flex items-center justify-between gap-3 text-xs">
-              <div className="flex items-center gap-2 overflow-hidden">
-                <Lock className="w-4 h-4 text-[#003087] dark:text-[#ffa500] flex-shrink-0" />
-                <div className="truncate">
-                  <span className="text-gray-500 text-[10px] block">
-                    PayPal Gateway Subscription Plan ID:
+              <div className="flex items-center gap-2.5">
+                <ShieldCheck className="w-5 h-5 text-[#003087] dark:text-[#ffa500] flex-shrink-0" />
+                <div>
+                  <span className="text-gray-900 dark:text-white font-bold text-xs block">
+                    Secure PayPal Express Gateway
                   </span>
-                  <code className="font-mono font-bold text-gray-900 dark:text-white text-[11px]">
-                    {currentPlanId}
-                  </code>
+                  <span className="text-gray-500 text-[11px]">
+                    256-bit SSL encrypted recurring billing. Internal tier configuration active.
+                  </span>
                 </div>
               </div>
 
-              <button
-                type="button"
-                onClick={() => handleCopyPlanId(currentPlanId)}
-                className="flex items-center gap-1 px-2.5 py-1 rounded-md bg-white dark:bg-[#163016] text-gray-700 dark:text-gray-200 text-[11px] font-semibold border border-gray-200 dark:border-[#224822] hover:bg-gray-50 flex-shrink-0 transition-colors"
-                title="Copy Plan ID"
-              >
-                {copiedPlanId === currentPlanId ? (
-                  <>
-                    <Check className="w-3 h-3 text-green-600" />
-                    <span>Copied</span>
-                  </>
-                ) : (
-                  <>
-                    <Copy className="w-3 h-3" />
-                    <span>Copy</span>
-                  </>
-                )}
-              </button>
+              <div className="flex items-center gap-1 text-[11px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-[#122412] px-2.5 py-1 rounded-full border border-emerald-200 dark:border-[#224822] flex-shrink-0">
+                <Check className="w-3.5 h-3.5" />
+                <span>SSL Encrypted</span>
+              </div>
             </div>
 
             {/* Payment Method Selector */}
@@ -452,7 +434,7 @@ export const PayPalGatewayModal: React.FC<PayPalGatewayModalProps> = ({
                 type="email"
                 value={customPayerEmail}
                 onChange={(e) => setCustomPayerEmail(e.target.value)}
-                placeholder="akindewum@gmail.com"
+                placeholder="name@company.com"
                 className="w-full px-3 py-2 rounded-xl border border-gray-300 dark:border-[#163016] bg-gray-50 dark:bg-[#060e06] text-gray-900 dark:text-white"
               />
             </div>
@@ -561,7 +543,15 @@ export const PayPalGatewayModal: React.FC<PayPalGatewayModalProps> = ({
                     });
                   }}
                   onError={(err) => {
-                    setErrorMessage(err?.message || "PayPal subscription processing error");
+                    const msg = String(err?.message || err || "");
+                    if (
+                      msg.includes("Detected popup close") ||
+                      msg.includes("popup close") ||
+                      msg.includes("window closed")
+                    ) {
+                      return;
+                    }
+                    setErrorMessage(msg || "PayPal subscription processing notice");
                   }}
                 />
               </div>
