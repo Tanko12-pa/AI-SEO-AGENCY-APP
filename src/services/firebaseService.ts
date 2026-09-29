@@ -143,6 +143,24 @@ export async function saveKeywordToFirestore(keyword: KeywordItem): Promise<void
   }
 }
 
+export async function bulkSaveKeywordsToFirestore(keywords: KeywordItem[]): Promise<void> {
+  try {
+    if (!keywords || keywords.length === 0) return;
+    const chunkSize = 400; // Batch limit is 500 in Firestore
+    for (let i = 0; i < keywords.length; i += chunkSize) {
+      const chunk = keywords.slice(i, i + chunkSize);
+      const batch = writeBatch(db);
+      chunk.forEach((kw) => {
+        const docRef = doc(db, COLLECTIONS.KEYWORDS, kw.id);
+        batch.set(docRef, kw, { merge: true });
+      });
+      await batch.commit();
+    }
+  } catch (e) {
+    console.warn("Firestore bulkSaveKeywords error:", e);
+  }
+}
+
 export async function deleteKeywordFromFirestore(id: string): Promise<void> {
   try {
     const docRef = doc(db, COLLECTIONS.KEYWORDS, id);

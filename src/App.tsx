@@ -12,6 +12,7 @@ import { detectMarketShifts } from "./services/marketShiftService";
 import {
   subscribeKeywords,
   saveKeywordToFirestore,
+  bulkSaveKeywordsToFirestore,
   deleteKeywordFromFirestore,
   bulkDeleteKeywordsFromFirestore,
   subscribeCompetitors,
@@ -76,7 +77,7 @@ import {
   CampaignLogItem,
   MarketShiftAlert,
 } from "./types";
-import { CheckCircle2, X, Radio, AlertTriangle, Trash2, ShieldAlert } from "lucide-react";
+import { CheckCircle2, X, Radio, AlertTriangle, Trash2, ShieldAlert, RotateCcw, Info } from "lucide-react";
 
 function AppContent() {
   const [currentTab, setCurrentTab] = useState<NavigationTab>("overview");
@@ -100,6 +101,12 @@ function AppContent() {
   const [isCloudSyncing, setIsCloudSyncing] = useState(false);
   const [globalSearchQuery, setGlobalSearchQuery] = useState("");
   const [logPendingDelete, setLogPendingDelete] = useState<CampaignLogItem | null>(null);
+
+  // Undo Delete Snackbar State for Campaign Logs
+  const [recentlyDeletedLog, setRecentlyDeletedLog] = useState<CampaignLogItem | null>(null);
+  const [undoTimerSeconds, setUndoTimerSeconds] = useState<number>(8);
+  const undoTimeoutRef = React.useRef<any>(null);
+  const undoIntervalRef = React.useRef<any>(null);
 
   // Real-time Firestore Subscriptions
   useEffect(() => {
@@ -311,6 +318,41 @@ function AppContent() {
     showToast(`Keyword "${kw.keyword}" added & synced to Firebase!`);
   };
 
+  const handleBulkImportKeywords = async (newKeywords: KeywordItem[]) => {
+    if (!newKeywords || newKeywords.length === 0) return;
+    setIsCloudSyncing(true);
+    // Optimistically update local state without duplicates
+    setKeywords((prev) => {
+      const existingIds = new Set(prev.map((k) => k.id));
+      const filteredNew = newKeywords.filter((k) => !existingIds.has(k.id));
+      return [...filteredNew, ...prev];
+    });
+
+    // Batch save all imported keywords directly to Firestore
+    await bulkSaveKeywordsToFirestore(newKeywords);
+
+    // Record campaign execution log for the import
+    const log: CampaignLogItem = {
+      id: `log-bulk-kw-${Date.now()}`,
+      timestamp: `2026-08-24 ${new Date().toLocaleTimeString()}`,
+      category: "On-Page",
+      event: `CSV Import: Loaded ${newKeywords.length} target keywords with live Firestore sync.`,
+      impactScore: `+${Math.min(18.5, Number((newKeywords.length * 1.2).toFixed(1)))}%`,
+      user: "Lead Strategist",
+    };
+    setCampaignLogs((prev) => [log, ...prev]);
+    await addCampaignLogToFirestore(log);
+
+    setIsCloudSyncing(false);
+    showToast(`Successfully imported ${newKeywords.length} keywords & synced to Firestore!`);
+    confetti({
+      particleCount: 50,
+      spread: 70,
+      origin: { y: 0.8 },
+      colors: ["#004d00", "#ffa500", "#10b981"],
+    });
+  };
+
   const handleAddCompetitor = (comp: CompetitorItem) => {
     setCompetitors((prev) => [comp, ...prev]);
     saveCompetitorToFirestore(comp);
@@ -502,12 +544,65 @@ function AppContent() {
 
   const handleConfirmDeleteCampaignLog = async () => {
     if (!logPendingDelete) return;
-    const id = logPendingDelete.id;
-    const cat = logPendingDelete.category;
+    const deletedRecord = { ...logPendingDelete };
+    const id = deletedRecord.id;
+    const cat = deletedRecord.category;
+
+    // Optimistically remove from local state
     setCampaignLogs((prev) => prev.filter((l) => l.id !== id));
-    await deleteCampaignLogFromFirestore(id);
-    showToast(`Campaign record [${cat}] permanently removed from SEO history.`);
     setLogPendingDelete(null);
+
+    // Delete record from Firestore service
+    await deleteCampaignLogFromFirestore(id);
+
+    // Set up Undo notification state with 8-second window
+    if (undoTimeoutRef.current) clearTimeout(undoTimeoutRef.current);
+    if (undoIntervalRef.current) clearInterval(undoIntervalRef.current);
+
+    setRecentlyDeletedLog(deletedRecord);
+    setUndoTimerSeconds(8);
+
+    undoIntervalRef.current = setInterval(() => {
+      setUndoTimerSeconds((prev) => {
+        if (prev <= 1) {
+          clearInterval(undoIntervalRef.current);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    undoTimeoutRef.current = setTimeout(() => {
+      setRecentlyDeletedLog(null);
+      if (undoIntervalRef.current) clearInterval(undoIntervalRef.current);
+    }, 8000);
+  };
+
+  const handleUndoDeleteCampaignLog = async () => {
+    if (!recentlyDeletedLog) return;
+    const recordToRestore = { ...recentlyDeletedLog };
+
+    // Clear undo snackbar and timers
+    setRecentlyDeletedLog(null);
+    if (undoTimeoutRef.current) clearTimeout(undoTimeoutRef.current);
+    if (undoIntervalRef.current) clearInterval(undoIntervalRef.current);
+
+    // Restore back to local state (prevent duplicates)
+    setCampaignLogs((prev) => {
+      if (prev.some((l) => l.id === recordToRestore.id)) return prev;
+      return [recordToRestore, ...prev];
+    });
+
+    // Restore record to Firestore service
+    await addCampaignLogToFirestore(recordToRestore);
+
+    showToast(`Campaign record [${recordToRestore.category}] successfully restored to Firestore!`);
+    confetti({
+      particleCount: 45,
+      spread: 60,
+      origin: { y: 0.85 },
+      colors: ["#004d00", "#ffa500", "#10b981"],
+    });
   };
 
   // CSV Export Feature
@@ -743,6 +838,7 @@ function AppContent() {
                   keywords={keywords}
                   externalSearchQuery={globalSearchQuery}
                   onAddKeyword={handleAddKeyword}
+                  onBulkImportKeywords={handleBulkImportKeywords}
                   onDeleteKeyword={handleDeleteKeyword}
                   onToggleArchiveKeyword={handleToggleArchiveKeyword}
                   onOpenAddModal={() => setIsAddModalOpen(true)}
@@ -929,6 +1025,14 @@ function AppContent() {
               </div>
             </div>
 
+            {/* Accidental deletion safeguard info */}
+            <div className="flex items-center gap-2.5 p-3 rounded-xl bg-amber-500/10 dark:bg-amber-950/30 border border-amber-500/30 text-[11px] text-amber-800 dark:text-amber-300">
+              <RotateCcw className="w-4 h-4 shrink-0 text-[#ffa500]" />
+              <span>
+                <strong>Accidental removal protection:</strong> A temporary 'Undo' notification state will allow you to immediately restore this log record to Firestore upon deletion.
+              </span>
+            </div>
+
             {/* Action Buttons */}
             <div className="flex items-center justify-end gap-3 pt-2">
               <button
@@ -943,12 +1047,53 @@ function AppContent() {
                 id="confirm-delete-log-btn"
                 type="button"
                 onClick={handleConfirmDeleteCampaignLog}
-                className="px-4 py-2 rounded-xl text-xs font-bold bg-red-600 hover:bg-red-700 text-white shadow-md flex items-center gap-2 transition-all active:scale-95"
+                className="px-4 py-2 rounded-xl text-xs font-bold bg-red-600 hover:bg-red-700 text-white shadow-md flex items-center gap-2 transition-all active:scale-95 cursor-pointer"
               >
                 <Trash2 className="w-4 h-4" />
                 <span>Delete Permanently</span>
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Temporary 'Undo' Notification State Snackbar */}
+      {recentlyDeletedLog && (
+        <div
+          id="undo-deleted-campaign-log-snackbar"
+          className="fixed bottom-6 left-6 z-50 bg-[#002b00] text-white border border-emerald-500/80 rounded-2xl shadow-2xl p-4 flex items-center gap-4 max-w-md animate-in slide-in-from-bottom-5 duration-200"
+        >
+          <div className="p-2.5 rounded-xl bg-[#004d00] text-[#ffa500] border border-emerald-600/50 flex-shrink-0">
+            <RotateCcw className="w-5 h-5 animate-pulse" />
+          </div>
+          <div className="flex-1 min-w-0 text-xs">
+            <div className="font-bold text-white flex items-center gap-2">
+              <span>Log Record Removed</span>
+              <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-400/20 text-[#ffa500] font-mono">
+                {undoTimerSeconds}s left
+              </span>
+            </div>
+            <p className="text-emerald-100 truncate mt-0.5 text-[11px]" title={recentlyDeletedLog.event}>
+              [{recentlyDeletedLog.category}] {recentlyDeletedLog.event}
+            </p>
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <button
+              id="undo-restore-campaign-log-btn"
+              onClick={handleUndoDeleteCampaignLog}
+              className="px-3 py-1.5 rounded-lg bg-[#ffa500] hover:brightness-110 text-slate-950 font-bold text-xs shadow-md transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Undo</span>
+            </button>
+            <button
+              id="dismiss-undo-snackbar-btn"
+              onClick={() => setRecentlyDeletedLog(null)}
+              className="p-1.5 rounded-lg text-emerald-300 hover:text-white hover:bg-emerald-950 transition-colors"
+              title="Dismiss"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
         </div>
       )}

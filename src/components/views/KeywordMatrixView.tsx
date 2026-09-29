@@ -59,6 +59,7 @@ interface KeywordMatrixViewProps {
   keywords: KeywordItem[];
   externalSearchQuery?: string;
   onAddKeyword: (kw: KeywordItem) => void;
+  onBulkImportKeywords?: (newKeywords: KeywordItem[]) => Promise<void> | void;
   onDeleteKeyword: (id: string) => void;
   onToggleArchiveKeyword?: (id: string) => void;
   onOpenAddModal: () => void;
@@ -82,6 +83,7 @@ export const KeywordMatrixView: React.FC<KeywordMatrixViewProps> = ({
   keywords,
   externalSearchQuery,
   onAddKeyword,
+  onBulkImportKeywords,
   onDeleteKeyword,
   onToggleArchiveKeyword,
   onOpenAddModal,
@@ -130,10 +132,14 @@ export const KeywordMatrixView: React.FC<KeywordMatrixViewProps> = ({
   const [isBulkProcessing, setIsBulkProcessing] = useState(false);
   const [isCsvImportOpen, setIsCsvImportOpen] = useState(false);
 
-  const handleBulkImportKeywords = (newKeywords: KeywordItem[]) => {
-    newKeywords.forEach((kw) => {
-      onAddKeyword(kw);
-    });
+  const handleBulkImportKeywords = async (newKeywords: KeywordItem[]) => {
+    if (onBulkImportKeywords) {
+      await onBulkImportKeywords(newKeywords);
+    } else {
+      newKeywords.forEach((kw) => {
+        onAddKeyword(kw);
+      });
+    }
     setIsCsvImportOpen(false);
   };
 
@@ -443,7 +449,7 @@ Key Actionable Takeaway: ${selectedTrendResult.actionableTakeaway}`;
             AI-Powered Keyword Research & Matrix ({keywords.length} Target Keywords)
           </h1>
           <p className="text-xs text-green-100 max-w-2xl">
-            Track conversational search volume, difficulty, AI Overview probability, live Google Trends interest trajectories with Google Search Grounding powered by Gemini 3.7 Flash.
+            Track conversational search volume, difficulty, AI Overview probability, live Google Trends interest trajectories with Google Search Grounding powered by Gemini 3.8 Flash.
           </p>
         </div>
 
@@ -932,6 +938,39 @@ Key Actionable Takeaway: ${selectedTrendResult.actionableTakeaway}`;
                       </tr>
                     );
                   })}
+                  {filteredKeywords.length === 0 && (
+                    <tr>
+                      <td colSpan={12} className="p-12 text-center text-gray-500">
+                        <div className="max-w-md mx-auto space-y-3 flex flex-col items-center">
+                          <div className="p-3 rounded-full bg-emerald-50 text-[#004d00]">
+                            <FileSpreadsheet className="w-8 h-8 text-[#004d00]" />
+                          </div>
+                          <h4 className="text-sm font-bold text-gray-900">No Target Keywords Found</h4>
+                          <p className="text-xs text-gray-500">
+                            {effectiveSearch || selectedCluster !== "All" || selectedIntent !== "All"
+                              ? "No keywords match your current search or filter criteria. Clear filters or import new entries."
+                              : "Get started by importing keyword data from a CSV spreadsheet or adding keywords manually."}
+                          </p>
+                          <div className="flex items-center gap-2 pt-2">
+                            <button
+                              onClick={() => setIsCsvImportOpen(true)}
+                              className="px-4 py-2 rounded-lg bg-[#004d00] hover:bg-[#003d00] text-white font-bold text-xs shadow-sm flex items-center gap-1.5 transition-colors cursor-pointer"
+                            >
+                              <Upload className="w-3.5 h-3.5 text-[#ffa500]" />
+                              <span>Import Keywords CSV</span>
+                            </button>
+                            <button
+                              onClick={onOpenAddModal}
+                              className="px-4 py-2 rounded-lg bg-[#ffa500] hover:brightness-110 text-slate-950 font-bold text-xs shadow-sm flex items-center gap-1.5 transition-colors cursor-pointer"
+                            >
+                              <Plus className="w-3.5 h-3.5" />
+                              <span>Add Single Keyword</span>
+                            </button>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>

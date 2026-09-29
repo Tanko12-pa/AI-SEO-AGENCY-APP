@@ -442,6 +442,7 @@ export type AiInsightTier =
   | "Calculated Insight"
   | "Recommendation"
   | "Assumption"
+  | "Explicit Assumption"
   | "Data Not Available";
 
 export interface AiActionItem {

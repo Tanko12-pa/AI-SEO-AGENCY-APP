@@ -11,8 +11,16 @@ import {
   Plus,
   ArrowUpRight,
   Sparkles,
+  Loader2,
+  Bot,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { CampaignLogItem } from "../types";
+import {
+  executeCampaignOptimizer,
+  CampaignOptimizerResponse,
+} from "../services/api";
 import {
   ResponsiveContainer,
   LineChart,
@@ -22,6 +30,7 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
+  Legend,
   ReferenceDot,
   ReferenceLine,
   Brush,
@@ -51,7 +60,32 @@ export const CampaignImpactTrendChart: React.FC<CampaignImpactTrendChartProps> =
   onOpenAddModal,
 }) => {
   const [selectedCategory, setSelectedCategory] = useState<string>("All");
+  const [viewMetric, setViewMetric] = useState<"both" | "event" | "cumulative">("both");
   const [hoveredEventIndex, setHoveredEventIndex] = useState<number | null>(null);
+
+  // AI Strategic Campaign Forecast States
+  const [isAnalyzingAi, setIsAnalyzingAi] = useState(false);
+  const [aiForecast, setAiForecast] = useState<CampaignOptimizerResponse | null>(null);
+  const [showAiForecast, setShowAiForecast] = useState(false);
+
+  const handleRunAiOptimizer = async () => {
+    if (aiForecast) {
+      setShowAiForecast(!showAiForecast);
+      return;
+    }
+    setIsAnalyzingAi(true);
+    try {
+      const res = await executeCampaignOptimizer(campaignLogs, "~148k visits/mo", "+25% organic growth");
+      if (res) {
+        setAiForecast(res);
+        setShowAiForecast(true);
+      }
+    } catch (err) {
+      console.error("AI campaign forecast error:", err);
+    } finally {
+      setIsAnalyzingAi(false);
+    }
+  };
 
   // Extract all categories
   const categories = useMemo(() => {
@@ -66,8 +100,8 @@ export const CampaignImpactTrendChart: React.FC<CampaignImpactTrendChartProps> =
   const chartData = useMemo(() => {
     // Clone and sort chronologically (oldest to newest)
     const sorted = [...campaignLogs].sort((a, b) => {
-      const timeA = new Date(a.timestamp).getTime();
-      const timeB = new Date(b.timestamp).getTime();
+      const timeA = new Date(a.timestamp ? a.timestamp.replace(" ", "T") : "").getTime();
+      const timeB = new Date(b.timestamp ? b.timestamp.replace(" ", "T") : "").getTime();
       if (!isNaN(timeA) && !isNaN(timeB)) return timeA - timeB;
       return a.id.localeCompare(b.id);
     });
@@ -80,7 +114,8 @@ export const CampaignImpactTrendChart: React.FC<CampaignImpactTrendChartProps> =
       // Extract short readable time/date label
       let dateLabel = log.timestamp;
       try {
-        const d = new Date(log.timestamp);
+        const iso = log.timestamp ? log.timestamp.replace(" ", "T") : "";
+        const d = new Date(iso);
         if (!isNaN(d.getTime())) {
           dateLabel = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
         }
@@ -176,7 +211,47 @@ export const CampaignImpactTrendChart: React.FC<CampaignImpactTrendChartProps> =
         </div>
 
         {/* Action & Filter Controls */}
-        <div className="flex items-center gap-2 self-start sm:self-auto">
+        <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+          {/* Metric View Mode Toggle */}
+          <div className="flex items-center rounded-lg border border-gray-200 dark:border-green-950/80 bg-gray-50 dark:bg-[#060e06] p-0.5 text-xs font-semibold">
+            <button
+              type="button"
+              onClick={() => setViewMetric("both")}
+              className={`px-2.5 py-1 rounded-md transition-all ${
+                viewMetric === "both"
+                  ? "bg-[#004d00] text-white shadow-xs font-bold"
+                  : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+              }`}
+              title="Visualize both Event Impact Scores and Cumulative Aggregate trajectory"
+            >
+              Dual Trends
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMetric("event")}
+              className={`px-2.5 py-1 rounded-md transition-all ${
+                viewMetric === "event"
+                  ? "bg-[#ffa500] text-slate-950 shadow-xs font-bold"
+                  : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+              }`}
+              title="Show individual Event Impact Scores over time"
+            >
+              Event Impact
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMetric("cumulative")}
+              className={`px-2.5 py-1 rounded-md transition-all ${
+                viewMetric === "cumulative"
+                  ? "bg-[#004d00] text-white shadow-xs font-bold"
+                  : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+              }`}
+              title="Show cumulative total growth trajectory"
+            >
+              Cumulative
+            </button>
+          </div>
+
           <div className="relative">
             <select
               id="impact-category-filter-select"
@@ -193,11 +268,27 @@ export const CampaignImpactTrendChart: React.FC<CampaignImpactTrendChartProps> =
             </select>
           </div>
 
+          <button
+            id="ai-campaign-forecast-btn"
+            type="button"
+            onClick={handleRunAiOptimizer}
+            disabled={isAnalyzingAi}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#004d00] hover:bg-[#003d00] text-white font-bold text-xs shadow-sm transition-all cursor-pointer disabled:opacity-50"
+            title="Analyze Impact Score trends and generate next-action forecast using Gemini 3.8 Flash"
+          >
+            {isAnalyzingAi ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin text-[#ffa500]" />
+            ) : (
+              <Sparkles className="w-3.5 h-3.5 text-[#ffa500]" />
+            )}
+            <span>{isAnalyzingAi ? "Analyzing..." : showAiForecast ? "Hide AI Forecast" : "AI Strategic Forecast"}</span>
+          </button>
+
           {onOpenAddModal && (
             <button
               id="impact-chart-add-event-btn"
               onClick={onOpenAddModal}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#ffa500] hover:brightness-110 text-slate-950 font-bold text-xs transition-colors shadow-sm"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#ffa500] hover:brightness-110 text-slate-950 font-bold text-xs transition-colors shadow-sm cursor-pointer"
             >
               <Plus className="w-3.5 h-3.5" />
               <span>Log Event</span>
@@ -205,6 +296,73 @@ export const CampaignImpactTrendChart: React.FC<CampaignImpactTrendChartProps> =
           )}
         </div>
       </div>
+
+      {/* AI Strategic Forecast & Next-Best Action Panel */}
+      {showAiForecast && aiForecast && (
+        <div
+          id="ai-campaign-forecast-panel"
+          className="bg-gradient-to-br from-emerald-950 via-[#002b00] to-slate-950 text-white rounded-2xl p-5 border border-emerald-500/40 shadow-xl space-y-4 animate-in slide-in-from-top-3 duration-200"
+        >
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-emerald-800/60 pb-3">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 rounded-xl bg-emerald-900/60 text-[#ffa500] border border-emerald-700/50">
+                <Bot className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="font-bold text-sm text-white flex items-center gap-2">
+                  <span>Gemini 3.8 Flash Strategic Impact Forecast</span>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full font-mono bg-amber-400/20 text-[#ffa500] font-bold border border-amber-400/30">
+                    Velocity Score: {aiForecast.velocityScore}/100
+                  </span>
+                </h4>
+                <p className="text-xs text-emerald-200/90 mt-0.5">
+                  {aiForecast.performanceSummary}
+                </p>
+              </div>
+            </div>
+
+            <div className="text-right sm:text-right">
+              <span className="text-[10px] uppercase font-bold tracking-wider text-emerald-300 block">
+                Predicted 45-Day Compound Lift
+              </span>
+              <span className="text-lg font-black text-[#ffa500] font-mono">
+                {aiForecast.predictedCompoundLift}
+              </span>
+            </div>
+          </div>
+
+          {/* Recommended Next Actions Grid */}
+          <div className="space-y-2">
+            <div className="text-[11px] font-bold uppercase tracking-wider text-emerald-300 flex items-center justify-between">
+              <span>Top 3 Prioritized Next Actions (Ranked by Historical Impact ROI)</span>
+              <span className="text-[10px] text-gray-400 font-normal">Primary Pillar: <strong>{aiForecast.topPillar}</strong></span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              {aiForecast.recommendedNextActions.map((rec, idx) => (
+                <div
+                  key={idx}
+                  className="bg-emerald-900/30 rounded-xl p-3.5 border border-emerald-700/40 space-y-2 text-xs"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#004d00] text-emerald-200 border border-emerald-600/50">
+                      {rec.category} • {rec.priority}
+                    </span>
+                    <span className="font-mono font-black text-[#ffa500]">
+                      Est. {rec.expectedImpactScore}
+                    </span>
+                  </div>
+                  <p className="font-bold text-white text-xs leading-snug">
+                    {rec.action}
+                  </p>
+                  <p className="text-[11px] text-emerald-200/80 leading-relaxed border-t border-emerald-800/40 pt-1.5">
+                    {rec.rationale}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* KPI Cards Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -351,25 +509,57 @@ export const CampaignImpactTrendChart: React.FC<CampaignImpactTrendChartProps> =
               />
               <ReferenceLine y={20} stroke="#ffa500" strokeDasharray="3 3" label={{ value: "Milestone: +20% Lift", fill: "#ffa500", fontSize: 10, position: "insideTopRight" }} />
               
-              <Line
-                type="monotone"
-                dataKey="cumulativeImpact"
-                name="Aggregate Impact Score"
-                stroke="#004d00"
-                strokeWidth={3}
-                dot={{
-                  r: 5,
-                  fill: "#004d00",
-                  stroke: "#ffffff",
-                  strokeWidth: 2,
-                }}
-                activeDot={{
-                  r: 8,
-                  fill: "#ffa500",
-                  stroke: "#ffffff",
-                  strokeWidth: 3,
-                }}
+              <Legend
+                verticalAlign="top"
+                height={36}
+                wrapperStyle={{ fontSize: "11px", paddingBottom: "8px" }}
               />
+
+              {/* Event Impact Score Line */}
+              {(viewMetric === "both" || viewMetric === "event") && (
+                <Line
+                  type="monotone"
+                  dataKey="incrementalImpact"
+                  name="Event Impact Score (% Lift)"
+                  stroke="#d97706"
+                  strokeWidth={2.5}
+                  dot={{
+                    r: 4.5,
+                    fill: "#d97706",
+                    stroke: "#ffffff",
+                    strokeWidth: 2,
+                  }}
+                  activeDot={{
+                    r: 7,
+                    fill: "#ea580c",
+                    stroke: "#ffffff",
+                    strokeWidth: 2,
+                  }}
+                />
+              )}
+
+              {/* Cumulative Compound Impact Score Line */}
+              {(viewMetric === "both" || viewMetric === "cumulative") && (
+                <Line
+                  type="monotone"
+                  dataKey="cumulativeImpact"
+                  name="Cumulative Impact Score (%)"
+                  stroke="#004d00"
+                  strokeWidth={3}
+                  dot={{
+                    r: 5,
+                    fill: "#004d00",
+                    stroke: "#ffffff",
+                    strokeWidth: 2,
+                  }}
+                  activeDot={{
+                    r: 8,
+                    fill: "#ffa500",
+                    stroke: "#ffffff",
+                    strokeWidth: 3,
+                  }}
+                />
+              )}
             </LineChart>
           </ResponsiveContainer>
         </div>

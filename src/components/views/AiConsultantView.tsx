@@ -16,6 +16,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { AiActionItem, AiInsightTier } from "../../types";
+import { executeAiConsultantChat } from "../../services/api";
 
 const INITIAL_ACTIONS: AiActionItem[] = [
   {
@@ -116,7 +117,7 @@ export const AiConsultantView: React.FC = () => {
   const [inputQuery, setInputQuery] = useState("");
   const [isTyping, setIsTyping] = useState(false);
 
-  const handleSendMessage = (textToSend?: string) => {
+  const handleSendMessage = async (textToSend?: string) => {
     const query = textToSend || inputQuery;
     if (!query.trim()) return;
 
@@ -127,46 +128,62 @@ export const AiConsultantView: React.FC = () => {
       timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
     };
 
-    setMessages((prev) => [...prev, userMsg]);
+    const updatedMessages = [...messages, userMsg];
+    setMessages(updatedMessages);
     setInputQuery("");
     setIsTyping(true);
 
-    setTimeout(() => {
-      let reply = "";
-      let tier: AiInsightTier = "Calculated Insight";
-
-      if (query.toLowerCase().includes("traffic drop") || query.toLowerCase().includes("why")) {
-        reply = `Based on connected Search Console & Analytics logs:
-1. [Observed Data]: Total organic clicks decreased 12.4% last month following the Core Algorithm update.
-2. [Calculated Insight]: 82% of the drop is concentrated on 3 legacy articles lacking modern structured data and author entities.
-3. [Recommendation]: Apply our EEAT Optimization workflow to refresh these 3 URLs and submit for re-crawling.
-4. [Assumption]: Presumes competitor backlink velocity remains steady over the next 14 days.`;
-        tier = "Calculated Insight";
-      } else if (query.toLowerCase().includes("fix first") || query.toLowerCase().includes("critical")) {
-        reply = `Top 3 prioritized actions for immediate execution:
-1. [Observed Data]: 4 service pages have meta noindex headers active from a staging deploy.
-2. [Recommendation]: Remove the noindex header immediately—this unlocks ~$4,200/mo in lost lead opportunities.
-3. [Recommendation]: Preload your Largest Contentful Paint (LCP) hero asset to bring mobile CWV under 2.5s.`;
-        tier = "Recommendation";
-      } else {
-        reply = `Analysis for: "${query}":
-1. [Observed Data]: Your domain currently ranks in the Top 10 for 18 primary target keywords.
-2. [Calculated Insight]: You hold a 65% AI Overview citation probability on commercial search queries.
-3. [Recommendation]: Deploy FAQPage structured data to capture the remaining 35% Answer Engine real estate.`;
-        tier = "Calculated Insight";
-      }
+    try {
+      const response = await executeAiConsultantChat(
+        updatedMessages.map((m) => ({ sender: m.sender, text: m.text })),
+        "ai-powered-seo.agency",
+        {
+          totalKeywords: 35,
+          activeCampaignLogs: 5,
+          lastEeatAuditScore: 96,
+        }
+      );
 
       const aiMsg: ChatMessage = {
         id: `ai-${Date.now()}`,
         sender: "ai",
-        text: reply,
+        text: response.reply,
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-        tier,
+        tier: response.tier || "Calculated Insight",
       };
 
       setMessages((prev) => [...prev, aiMsg]);
+
+      // If AI recommended new actions, append them
+      if (response.suggestedActions && response.suggestedActions.length > 0) {
+        const newActions: AiActionItem[] = response.suggestedActions.map((act, i) => ({
+          id: `ai-gen-act-${Date.now()}-${i}`,
+          title: act.title,
+          category: act.category as any,
+          priority: act.priority as any,
+          why: `Generated based on query: "${query}"`,
+          impact: act.impact,
+          how: "Execute recommended prompt instructions in content optimizer.",
+          businessValue: act.businessValue,
+          effort: act.effort as any,
+          status: "New",
+          tier: response.tier,
+        }));
+        setActions((prev) => [...newActions, ...prev]);
+      }
+    } catch (err) {
+      console.warn("AiConsultant live query failed:", err);
+      const fallbackMsg: ChatMessage = {
+        id: `ai-err-${Date.now()}`,
+        sender: "ai",
+        text: `Based on your query: "${query}", we recommend reviewing your Top-10 ranking terms, embedding 45-word direct answer snippets, and auditing NAP consistency across regional citations.`,
+        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        tier: "Recommendation",
+      };
+      setMessages((prev) => [...prev, fallbackMsg]);
+    } finally {
       setIsTyping(false);
-    }, 1000);
+    }
   };
 
   const handleActionStatus = (id: string, newStatus: "Approved" | "Rejected") => {

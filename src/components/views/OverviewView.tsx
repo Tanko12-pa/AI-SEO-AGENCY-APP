@@ -570,8 +570,9 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
                   <td className="p-3 text-gray-600">{log.user}</td>
                   <td className="p-3 text-right">
                     <button
+                      id={`delete-campaign-log-btn-${log.id}`}
                       onClick={() => onDeleteLog(log.id)}
-                      className="p-1.5 rounded text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                      className="p-1.5 rounded text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
                       title="Delete log record"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
